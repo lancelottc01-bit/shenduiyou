@@ -1,3 +1,3 @@
 window.SHENDUIYOU_CONFIG = {
-  API_URL: "https://script.google.com/macros/s/AKfycbzSp5qA1pzdLO8i2Ymy72HKIDYH0Ba4ZbE9dSCaVo7fcrdbzq4YCuhcDSP5jRu4Vr935w/exec"
+  API_URL: "https://script.google.com/macros/s/AKfycbyGAbR9j363MTxwMb0LijlW_Ry-Cw_6BdSMSPLVz_P2xY3NVEc5oHCGAjXO-_7UC4JFAg/exec"
 };

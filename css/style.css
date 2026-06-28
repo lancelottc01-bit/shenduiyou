@@ -49,85 +49,90 @@ img {
   margin: 0 auto;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 90% 8%, rgba(255,159,67,.16), transparent 24%),
-    linear-gradient(180deg, #eaf2fb 0%, #f6f8fb 30%, #f6f8fb 100%);
+    radial-gradient(circle at 90% 8%, rgba(255, 159, 67, 0.14), transparent 24%),
+    linear-gradient(180deg, #eaf2fb 0%, #f6f8fb 32%, #f6f8fb 100%);
   position: relative;
   overflow-x: hidden;
 }
 
+/* ===== 頁首 Banner ===== */
+
 .brand-hero {
-  padding: 28px 18px 24px;
+  padding: 12px 12px 16px;
   background:
-    radial-gradient(circle at 88% 0%, rgba(255,159,67,.34), transparent 30%),
-    radial-gradient(circle at 8% 18%, rgba(33,182,168,.16), transparent 26%),
+    radial-gradient(circle at 88% 0%, rgba(255, 159, 67, 0.22), transparent 30%),
     linear-gradient(135deg, var(--navy), var(--navy-2));
   color: white;
-  border-radius: 0 0 34px 34px;
-  box-shadow: 0 20px 48px rgba(15,39,66,.2);
+  border-radius: 0 0 32px 32px;
+  box-shadow: 0 20px 48px rgba(15, 39, 66, 0.2);
 }
 
-.eyebrow {
-  display: inline-block;
-  margin: 0 0 10px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.12);
-  color: #ffcf9b;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: .05em;
+.image-only-hero {
+  padding: 12px 12px 16px;
 }
 
-h1 {
+.hero-banner,
+.hero-banner-full {
+  width: 100%;
+  display: block;
   margin: 0;
-  font-size: 44px;
-  line-height: 1.05;
+  border-radius: 24px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+}
+
+.hero-copy,
+.eyebrow,
+.subtitle,
+.brand-line,
+.brand-desc,
+.hero-tags {
+  display: none;
+}
+
+/* ===== Banner 下方操作卡 ===== */
+
+.hero-action-card {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: white;
+}
+
+.hero-action-card strong {
+  display: block;
+  font-size: 20px;
   font-weight: 950;
-  letter-spacing: -0.05em;
+  margin-bottom: 6px;
 }
 
-.subtitle {
-  margin: 9px 0 0;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.brand-line {
-  margin: 12px 0 0;
-  font-size: 21px;
-  font-weight: 950;
-}
-
-.brand-desc {
-  margin: 7px 0 0;
-  color: rgba(255,255,255,.84);
-  line-height: 1.6;
+.hero-action-card span {
+  display: block;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 14px;
+  line-height: 1.55;
   font-weight: 700;
 }
 
-.hero-tags {
+.hero-action-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
-.hero-tags span {
-  padding: 8px 11px;
+.hero-action-tags span {
+  display: inline-flex;
+  padding: 7px 10px;
   border-radius: 999px;
-  background: rgba(255,255,255,.13);
-  border: 1px solid rgba(255,255,255,.17);
-  color: white;
+  background: rgba(255, 159, 67, 0.18);
+  color: #ffcf9b;
+  font-size: 12px;
   font-weight: 900;
-  font-size: 13px;
 }
 
-.hero-banner {
-  width: 100%;
-  margin-top: 20px;
-  border-radius: 26px;
-  box-shadow: 0 24px 45px rgba(0,0,0,.22);
-}
+/* ===== 主要內容 ===== */
 
 main {
   padding: 0 14px 128px;
@@ -187,6 +192,8 @@ main {
   line-height: 1.5;
 }
 
+/* ===== 熱門補貨 ===== */
+
 .horizontal-list {
   display: flex;
   gap: 12px;
@@ -207,7 +214,7 @@ main {
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 8px;
-  box-shadow: 0 8px 18px rgba(15,39,66,.08);
+  box-shadow: 0 8px 18px rgba(15, 39, 66, 0.08);
 }
 
 .quick-card img {
@@ -239,6 +246,8 @@ main {
   font-size: 12px;
 }
 
+/* ===== 分類 ===== */
+
 .category-list {
   display: flex;
   gap: 10px;
@@ -255,7 +264,7 @@ main {
   border: 1px solid var(--line);
   color: var(--text);
   font-weight: 900;
-  box-shadow: 0 6px 14px rgba(15,39,66,.06);
+  box-shadow: 0 6px 14px rgba(15, 39, 66, 0.06);
 }
 
 .category-chip.active {
@@ -263,6 +272,8 @@ main {
   color: white;
   border-color: var(--navy);
 }
+
+/* ===== 商品卡 ===== */
 
 .product-grid {
   display: grid;
@@ -276,11 +287,11 @@ main {
   border-radius: 26px;
   padding: 14px;
   box-shadow: var(--shadow);
-  transition: transform .22s ease, box-shadow .22s ease;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
 
 .product-card:active {
-  transform: scale(.995);
+  transform: scale(0.995);
 }
 
 .brand-row {
@@ -335,6 +346,8 @@ main {
   font-weight: 950;
 }
 
+/* ===== 單包 / 箱購 ===== */
+
 .buy-options {
   display: grid;
   grid-template-columns: 1fr 1.08fr;
@@ -354,7 +367,7 @@ main {
 .case-box {
   border: 2px solid var(--orange);
   background: linear-gradient(180deg, #fff8ef 0%, #fff3df 100%);
-  box-shadow: 0 14px 28px rgba(244,123,32,.18);
+  box-shadow: 0 14px 28px rgba(244, 123, 32, 0.18);
 }
 
 .case-box::after {
@@ -365,7 +378,7 @@ main {
   width: 86px;
   height: 86px;
   border-radius: 50%;
-  background: rgba(255,159,67,.2);
+  background: rgba(255, 159, 67, 0.2);
   pointer-events: none;
 }
 
@@ -427,7 +440,7 @@ main {
   margin-top: 5px;
   padding: 4px 7px;
   border-radius: 999px;
-  background: rgba(247,181,0,.18);
+  background: rgba(247, 181, 0, 0.18);
   color: #996800;
   font-size: 12px;
   font-weight: 950;
@@ -443,14 +456,16 @@ main {
   color: white;
   font-weight: 950;
   font-size: 14px;
-  box-shadow: 0 8px 18px rgba(15,39,66,.18);
+  box-shadow: 0 8px 18px rgba(15, 39, 66, 0.18);
 }
 
 .case-btn,
 .add-btn {
   background: linear-gradient(135deg, var(--orange), var(--orange-dark));
-  box-shadow: 0 8px 18px rgba(244,123,32,.24);
+  box-shadow: 0 8px 18px rgba(244, 123, 32, 0.24);
 }
+
+/* ===== 底部補貨車 ===== */
 
 .bottom-cart-bar {
   position: fixed;
@@ -467,9 +482,9 @@ main {
   justify-content: space-between;
   color: white;
   background:
-    radial-gradient(circle at 92% 20%, rgba(255,159,67,.22), transparent 28%),
+    radial-gradient(circle at 92% 20%, rgba(255, 159, 67, 0.22), transparent 28%),
     linear-gradient(135deg, var(--navy), #07192c);
-  box-shadow: 0 18px 38px rgba(15,39,66,.38);
+  box-shadow: 0 18px 38px rgba(15, 39, 66, 0.38);
 }
 
 .bottom-cart-left {
@@ -509,7 +524,7 @@ main {
 
 .bottom-cart-left small {
   display: block;
-  color: rgba(255,255,255,.76);
+  color: rgba(255, 255, 255, 0.76);
   font-size: 12px;
   margin-top: 2px;
   max-width: 265px;
@@ -536,6 +551,8 @@ main {
   font-weight: 900;
 }
 
+/* ===== 抽屜 / 登入 / 採購確認 ===== */
+
 .drawer,
 .checkout-page {
   position: fixed;
@@ -548,7 +565,7 @@ main {
 .drawer-mask {
   position: absolute;
   inset: 0;
-  background: rgba(15,39,66,.28);
+  background: rgba(15, 39, 66, 0.28);
 }
 
 .drawer-panel {
@@ -560,7 +577,7 @@ main {
   background: white;
   border-radius: 28px 28px 0 0;
   padding: 16px;
-  box-shadow: 0 -16px 40px rgba(0,0,0,.13);
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.13);
   display: flex;
   flex-direction: column;
 }
@@ -658,7 +675,7 @@ main {
 }
 
 .primary-btn:disabled {
-  opacity: .68;
+  opacity: 0.68;
   cursor: not-allowed;
 }
 
@@ -736,7 +753,7 @@ main {
   padding: 12px;
   border-radius: 16px;
   background:
-    radial-gradient(circle at 92% 0%, rgba(247,181,0,.28), transparent 28%),
+    radial-gradient(circle at 92% 0%, rgba(247, 181, 0, 0.28), transparent 28%),
     var(--orange-soft);
   color: var(--orange-dark);
   font-weight: 900;
@@ -774,6 +791,8 @@ main {
 .note-label {
   margin: 14px 0;
 }
+
+/* ===== 成功頁 ===== */
 
 .success-page {
   min-height: 100vh;
@@ -820,6 +839,8 @@ main {
   margin-top: 4px;
   word-break: break-all;
 }
+
+/* ===== 共用 ===== */
 
 .toast {
   position: fixed;
@@ -911,6 +932,8 @@ main {
   padding: 20px 0 28px;
 }
 
+/* ===== RWD ===== */
+
 @media (min-width: 440px) {
   .product-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -926,10 +949,6 @@ main {
 }
 
 @media (max-width: 360px) {
-  h1 {
-    font-size: 36px;
-  }
-
   .buy-options {
     grid-template-columns: 1fr;
   }
@@ -940,5 +959,9 @@ main {
 
   .bottom-cart-left small {
     max-width: 210px;
+  }
+
+  .hero-action-card strong {
+    font-size: 18px;
   }
 }

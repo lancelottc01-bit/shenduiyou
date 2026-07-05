@@ -29,13 +29,9 @@ function escapeHtml(value) {
 function toast(message) {
   const el = $('toast');
   if (!el) return;
-
   el.textContent = message;
   el.classList.remove('hidden');
-
-  setTimeout(() => {
-    el.classList.add('hidden');
-  }, 1800);
+  setTimeout(() => el.classList.add('hidden'), 1800);
 }
 
 function safeImage(url) {
@@ -71,8 +67,8 @@ function showLoadingUI() {
     $('productGrid').innerHTML = `
       <div class="loading-box">
         <div class="loading-title">📦 耗材整理中</div>
-        <div class="loading-desc">正在整理餐飲耗材與箱購價格<br>首次開啟約需數秒</div>
-        <div class="loading-tip">請稍候一下，神隊友馬上到位 🚚</div>
+        <div class="loading-desc">正在整理餐飲耗材與價格<br>首次開啟約需數秒</div>
+        <div class="loading-tip">請稍候一下，補貨清單馬上就好 🚚</div>
       </div>
     `;
   }
@@ -94,8 +90,7 @@ async function loadProducts() {
   showLoadingUI();
 
   try {
-    const data = await API.getProducts();
-    const rows = Array.isArray(data) ? data : (data.products || data.data || []);
+    const rows = await API.getProducts();
 
     state.products = rows
       .map(normalizeProduct)
@@ -128,29 +123,27 @@ async function loadProducts() {
 
 function normalizeProduct(p) {
   return {
-    id: String(p.id || p.ID || '').trim(),
-    category: String(p.category || p.Category || '其他').trim() || '其他',
-    brand: String(p.brand || p.Brand || '').trim(),
-    supplier: String(p.supplier || p.Supplier || '').trim(),
-    name: String(p.name || p.Name || '').trim(),
-    spec: String(p.spec || p.Spec || '').trim(),
+    id: String(p.id || '').trim(),
+    category: String(p.category || '其他').trim() || '其他',
+    brand: String(p.brand || '').trim(),
+    name: String(p.name || '').trim(),
+    spec: String(p.spec || '').trim(),
 
-    packQty: String(p.packQty || p.PackQty || '').trim(),
-    packPrice: Number(p.packPrice || p.PackPrice || 0),
-    packRewardPercent: Number(p.packRewardPercent || p.PackRewardPercent || 0),
+    packQty: String(p.pack_qty || p.packQty || '').trim(),
+    packPrice: Number(p.pack_price || p.packPrice || 0),
+    packRewardPercent: Number(p.pack_reward_percent || p.packRewardPercent || 0),
 
-    caseQty: String(p.caseQty || p.CaseQty || '').trim(),
-    casePrice: Number(p.casePrice || p.CasePrice || 0),
-    caseRewardPercent: Number(p.caseRewardPercent || p.CaseRewardPercent || 0),
+    caseQty: String(p.case_qty || p.caseQty || '').trim(),
+    casePrice: Number(p.case_price || p.casePrice || 0),
+    caseRewardPercent: Number(p.case_reward_percent || p.caseRewardPercent || 0),
 
-    image: String(p.image || p.Image || placeholder).trim() || placeholder,
-    tags: String(p.tags || p.Tags || '').trim(),
+    image: String(p.image_url || p.image || placeholder).trim() || placeholder,
+    tags: String(p.tags || '').trim(),
 
-    isFeatured: String(p.isFeatured || p.featured || p.IsFeatured || '').toUpperCase() === 'TRUE',
-    isRecommended: String(p.isRecommended || p.recommended || p.IsRecommended || '').toUpperCase() === 'TRUE',
-    isVisible: String(p.isVisible || p.visible || p.IsVisible || 'TRUE').toUpperCase() !== 'FALSE',
-
-    sort: Number(p.sort || p.Sort || 9999)
+    isFeatured: Boolean(p.is_featured ?? p.isFeatured),
+    isRecommended: Boolean(p.is_recommended ?? p.isRecommended),
+    isVisible: p.is_visible === undefined ? true : Boolean(p.is_visible),
+    sort: Number(p.sort_order || p.sort || 9999)
   };
 }
 
@@ -159,13 +152,11 @@ function applyFilter() {
 
   let results = state.products.filter(p => {
     const matchCategory = state.category === '全部' || p.category === state.category;
-    const searchText = `${p.name} ${p.category} ${p.brand} ${p.supplier} ${p.spec} ${p.tags}`.toLowerCase();
-
+    const searchText = `${p.name} ${p.category} ${p.brand} ${p.spec} ${p.tags}`.toLowerCase();
     return matchCategory && (!kw || searchText.includes(kw));
   });
 
   results.sort((a, b) => a.sort - b.sort);
-
   state.filtered = results;
   resetProductRender();
 }
@@ -174,9 +165,7 @@ function resetProductRender() {
   state.renderIndex = 0;
   state.isRendering = false;
 
-  if (state.observer) {
-    state.observer.disconnect();
-  }
+  if (state.observer) state.observer.disconnect();
 
   if ($('productTotal')) {
     $('productTotal').textContent = `${state.filtered.length} 件`;
@@ -212,10 +201,8 @@ function renderNextProducts() {
   });
 
   grid.appendChild(fragment);
-
   state.renderIndex = end;
   state.isRendering = false;
-
   addLoadMoreTrigger();
 }
 
@@ -239,9 +226,7 @@ function addLoadMoreTrigger() {
 }
 
 function setupInfiniteScroll() {
-  if (state.observer) {
-    state.observer.disconnect();
-  }
+  if (state.observer) state.observer.disconnect();
 
   state.observer = new IntersectionObserver(entries => {
     if (!entries[0].isIntersecting) return;
@@ -295,12 +280,8 @@ function productLabels(product) {
     : '';
 }
 
-function rewardAmount(price, percent) {
-  return Math.round(Number(price || 0) * Number(percent || 0) / 100);
-}
-
 function rewardText(percent, price) {
-  const amount = rewardAmount(price, percent);
+  const amount = Math.round(Number(price || 0) * Number(percent || 0) / 100);
   return `${Number(percent || 0)}%｜約 ${money(amount)}`;
 }
 
@@ -315,24 +296,6 @@ function averageCasePrice(product) {
   if (!qty || !product.casePrice) return '';
 
   return money(product.casePrice / qty);
-}
-
-function caseSavingText(product) {
-  const caseText = String(product.caseQty || '');
-  const match = caseText.match(/(\d+)/);
-
-  if (!match) return '';
-
-  const casePackCount = Number(match[1]);
-
-  if (!casePackCount || !product.packPrice || !product.casePrice) return '';
-
-  const original = product.packPrice * casePackCount;
-  const saving = original - product.casePrice;
-
-  if (saving <= 0) return '';
-
-  return `箱購約省 ${money(saving)}`;
 }
 
 function productCardSmall(product) {
@@ -366,7 +329,6 @@ function productCardSmall(product) {
 
 function productCard(product) {
   const avgPrice = averageCasePrice(product);
-  const savingText = caseSavingText(product);
 
   return `
     <article class="product-card">
@@ -387,11 +349,10 @@ function productCard(product) {
 
       <div class="product-meta">
         <h3>${escapeHtml(product.name)}</h3>
-        <div class="muted">廠商｜${escapeHtml(product.supplier || '未標示')}</div>
-        <div class="muted">規格｜${escapeHtml(product.spec || '-')}</div>
+        <div class="muted">${escapeHtml(product.brand || '未標示')}｜${escapeHtml(product.spec || '-')}</div>
       </div>
 
-      <div class="buy-options">
+      <div class="buy-options calm-options">
         <div class="buy-box pack-box">
           <div class="buy-title">單包</div>
           <div class="buy-unit">${escapeHtml(product.packQty || '-')}</div>
@@ -408,19 +369,17 @@ function productCard(product) {
           </button>
         </div>
 
-        <div class="buy-box case-box">
-          <div class="case-ribbon">🏆 箱購優惠</div>
+        <div class="buy-box case-box calm-case-box">
           <div class="buy-title">箱購</div>
           <div class="buy-unit">${escapeHtml(product.caseQty || '-')}</div>
           <div class="buy-price">${money(product.casePrice)}</div>
 
           ${avgPrice ? `<div class="case-average">平均每包 ${avgPrice}</div>` : ''}
-          ${savingText ? `<div class="case-saving">${savingText}</div>` : ''}
 
-          <div class="reward-strong">🏆 箱購回饋 ${rewardText(product.caseRewardPercent, product.casePrice)}</div>
+          <div class="reward-strong">🎁 回饋 ${rewardText(product.caseRewardPercent, product.casePrice)}</div>
 
           <button
-            class="option-btn case-btn"
+            class="option-btn case-btn calm-case-btn"
             data-add-id="${escapeHtml(product.id)}"
             data-add-type="case"
             type="button"
@@ -445,9 +404,7 @@ function parseCartKey(key) {
 function addToCart(productId, type) {
   const product = state.productMap.get(productId);
 
-  if (!product) {
-    return toast('找不到商品');
-  }
+  if (!product) return toast('找不到商品');
 
   if (type === 'pack' && !product.packPrice) {
     return toast('此商品尚未設定單包價格');
@@ -458,9 +415,7 @@ function addToCart(productId, type) {
   }
 
   const key = makeCartKey(productId, type);
-
   state.cart[key] = (state.cart[key] || 0) + 1;
-
   saveCart();
 
   toast(`已加入${type === 'case' ? '箱購' : '單包'}到補貨車`);
@@ -469,11 +424,8 @@ function addToCart(productId, type) {
 function changeQty(key, delta) {
   const next = (state.cart[key] || 0) + delta;
 
-  if (next <= 0) {
-    delete state.cart[key];
-  } else {
-    state.cart[key] = next;
-  }
+  if (next <= 0) delete state.cart[key];
+  else state.cart[key] = next;
 
   saveCart();
   renderCart();
@@ -493,7 +445,7 @@ function getCartItems() {
       const rewardPercent = isCase ? product.caseRewardPercent : product.packRewardPercent;
       const unitText = isCase ? product.caseQty : product.packQty;
       const subtotal = Math.round(price * qty);
-      const reward = Math.round(subtotal * rewardPercent / 100);
+      const rewardAmount = Math.round(subtotal * rewardPercent / 100);
 
       return {
         key,
@@ -502,14 +454,13 @@ function getCartItems() {
         typeName: isCase ? '箱購' : '單包',
         name: product.name,
         brand: product.brand,
-        supplier: product.supplier,
         image: product.image,
         qty,
         unitText,
         price,
         rewardPercent,
         subtotal,
-        rewardAmount: reward
+        rewardAmount
       };
     })
     .filter(Boolean);
@@ -529,13 +480,8 @@ function getCartTotals() {
 function renderCartBadge() {
   const totals = getCartTotals();
 
-  if ($('cartCount')) {
-    $('cartCount').textContent = totals.count;
-  }
-
-  if ($('bottomCartTotal')) {
-    $('bottomCartTotal').textContent = money(totals.subtotal);
-  }
+  if ($('cartCount')) $('cartCount').textContent = totals.count;
+  if ($('bottomCartTotal')) $('bottomCartTotal').textContent = money(totals.subtotal);
 
   if ($('cartSummaryText')) {
     if (!totals.count) {
@@ -562,13 +508,8 @@ function renderCart() {
       : '<div class="empty">補貨車目前是空的</div>';
   }
 
-  if ($('cartTotal')) {
-    $('cartTotal').textContent = money(subtotal);
-  }
-
-  if ($('cartRewardTotal')) {
-    $('cartRewardTotal').textContent = money(reward);
-  }
+  if ($('cartTotal')) $('cartTotal').textContent = money(subtotal);
+  if ($('cartRewardTotal')) $('cartRewardTotal').textContent = money(reward);
 }
 
 function cartItemHtml(item) {
@@ -590,25 +531,9 @@ function cartItemHtml(item) {
         </div>
 
         <div class="qty-row">
-          <button
-            class="qty-btn"
-            data-qty-key="${escapeHtml(item.key)}"
-            data-delta="-1"
-            type="button"
-          >
-            −
-          </button>
-
+          <button class="qty-btn" data-qty-key="${escapeHtml(item.key)}" data-delta="-1" type="button">−</button>
           <strong>${item.qty}</strong>
-
-          <button
-            class="qty-btn"
-            data-qty-key="${escapeHtml(item.key)}"
-            data-delta="1"
-            type="button"
-          >
-            ＋
-          </button>
+          <button class="qty-btn" data-qty-key="${escapeHtml(item.key)}" data-delta="1" type="button">＋</button>
         </div>
       </div>
     </div>
@@ -621,29 +546,22 @@ async function handleLogin(event) {
   const account = $('storeAccount').value.trim();
   const password = $('storePassword').value.trim();
 
-  if (!account || !password) {
-    return toast('請輸入帳號密碼');
-  }
+  if (!account || !password) return toast('請輸入帳號密碼');
 
   const btn = $('loginBtn');
-
   btn.disabled = true;
   btn.textContent = '登入中...';
 
   try {
     const result = await API.storeLogin(account, password);
 
-    if (!result.ok) {
-      throw new Error(result.message || '登入失敗');
-    }
+    if (!result.ok) throw new Error(result.message || '登入失敗');
 
     saveStore(result.store);
-
     $('loginPage').classList.add('hidden');
 
     renderConfirm();
     $('confirmPage').classList.remove('hidden');
-
     toast('登入成功');
   } catch (err) {
     console.error(err);
@@ -656,19 +574,13 @@ async function handleLogin(event) {
 
 function renderConfirm() {
   const store = state.store;
-
   if (!store) return;
 
   const { items, subtotal, reward } = getCartTotals();
   const boss = store.bossName || store.storeName || '老闆';
 
-  if ($('bossGreeting')) {
-    $('bossGreeting').textContent = `${boss}您好`;
-  }
-
-  if ($('monthlyRewardText')) {
-    $('monthlyRewardText').textContent = money(store.monthlyReward || 0);
-  }
+  if ($('bossGreeting')) $('bossGreeting').textContent = `${boss}您好`;
+  if ($('monthlyRewardText')) $('monthlyRewardText').textContent = money(store.monthlyReward || 0);
 
   if ($('storeInfoText')) {
     $('storeInfoText').textContent = `${store.storeName || ''}｜${store.level || '一般店'}｜業務 ${store.salesName || '-'}`;
@@ -685,14 +597,8 @@ function renderConfirm() {
       : '<div class="empty">採購車目前是空的</div>';
   }
 
-  if ($('confirmSubtotal')) {
-    $('confirmSubtotal').textContent = money(subtotal);
-  }
-
-  if ($('confirmReward')) {
-    $('confirmReward').textContent = money(reward);
-  }
-
+  if ($('confirmSubtotal')) $('confirmSubtotal').textContent = money(subtotal);
+  if ($('confirmReward')) $('confirmReward').textContent = money(reward);
   if ($('confirmMonthlyAfter')) {
     $('confirmMonthlyAfter').textContent = money(Number(store.monthlyReward || 0) + reward);
   }
@@ -702,16 +608,10 @@ async function submitOrder() {
   const store = state.store;
   const { items, subtotal } = getCartTotals();
 
-  if (!store) {
-    return toast('請先登入店家帳號');
-  }
-
-  if (!items.length) {
-    return toast('補貨車是空的');
-  }
+  if (!store) return toast('請先登入店家帳號');
+  if (!items.length) return toast('補貨車是空的');
 
   const btn = $('submitOrderBtn');
-
   btn.disabled = true;
   btn.textContent = '送出中...';
 
@@ -726,7 +626,6 @@ async function submitOrder() {
         typeName: item.typeName,
         name: item.name,
         brand: item.brand,
-        supplier: item.supplier,
         qty: item.qty,
         unitText: item.unitText,
         price: item.price,
@@ -736,21 +635,17 @@ async function submitOrder() {
 
     const result = await API.createOrder(payload);
 
-    if (!result.ok) {
-      throw new Error(result.message || '採購單送出失敗');
-    }
+    if (!result.ok) throw new Error(result.message || '採購單送出失敗');
 
     state.cart = {};
     saveCart();
 
-    if (result.store) {
-      saveStore(result.store);
-    }
+    if (result.store) saveStore(result.store);
 
     $('confirmPage').innerHTML = `
       <div class="success-page">
         <div class="success-icon">✅</div>
-        <h2>神隊友已收到您的採購單</h2>
+        <h2>採購單已送出</h2>
         <p>我們會依序為您整理補貨需求，並由業務或配送人員確認。</p>
 
         <div class="success-card">
@@ -796,9 +691,7 @@ function bindEvents() {
   $('reloadBtn').addEventListener('click', () => {
     state.category = '全部';
     state.keyword = '';
-
     $('searchInput').value = '';
-
     applyFilter();
     renderCategories();
   });
@@ -809,9 +702,7 @@ function bindEvents() {
   });
 
   $('checkoutBtn').addEventListener('click', () => {
-    if (!getCartItems().length) {
-      return toast('請先加入商品');
-    }
+    if (!getCartItems().length) return toast('請先加入商品');
 
     $('cartDrawer').classList.add('hidden');
 
@@ -832,7 +723,6 @@ function bindEvents() {
   });
 
   $('loginForm').addEventListener('submit', handleLogin);
-
   $('submitOrderBtn').addEventListener('click', submitOrder);
 
   if ($('logoutStoreBtn')) {
@@ -843,9 +733,7 @@ function bindEvents() {
     const addId = event.target.dataset.addId;
     const addType = event.target.dataset.addType;
 
-    if (addId && addType) {
-      addToCart(addId, addType);
-    }
+    if (addId && addType) addToCart(addId, addType);
 
     const category = event.target.dataset.category;
 

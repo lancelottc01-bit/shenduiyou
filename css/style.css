@@ -15,9 +15,7 @@
   --radius: 22px;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 html,
 body {
@@ -30,9 +28,7 @@ body {
 
 button,
 input,
-textarea {
-  font: inherit;
-}
+textarea { font: inherit; }
 
 button {
   cursor: pointer;
@@ -49,7 +45,7 @@ img {
   margin: 0 auto;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 90% 8%, rgba(255, 159, 67, 0.14), transparent 24%),
+    radial-gradient(circle at 90% 8%, rgba(255,159,67,.12), transparent 24%),
     linear-gradient(180deg, #eaf2fb 0%, #f6f8fb 32%, #f6f8fb 100%);
   position: relative;
   overflow-x: hidden;
@@ -60,11 +56,11 @@ img {
 .brand-hero {
   padding: 12px 12px 16px;
   background:
-    radial-gradient(circle at 88% 0%, rgba(255, 159, 67, 0.22), transparent 30%),
+    radial-gradient(circle at 88% 0%, rgba(255,159,67,.22), transparent 30%),
     linear-gradient(135deg, var(--navy), var(--navy-2));
   color: white;
   border-radius: 0 0 32px 32px;
-  box-shadow: 0 20px 48px rgba(15, 39, 66, 0.2);
+  box-shadow: 0 20px 48px rgba(15,39,66,.2);
 }
 
 .image-only-hero {
@@ -77,7 +73,7 @@ img {
   display: block;
   margin: 0;
   border-radius: 24px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 18px 40px rgba(0,0,0,.22);
 }
 
 .hero-copy,
@@ -89,14 +85,12 @@ img {
   display: none;
 }
 
-/* ===== Banner 下方操作卡 ===== */
-
 .hero-action-card {
   margin-top: 14px;
   padding: 16px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.16);
   color: white;
 }
 
@@ -109,7 +103,7 @@ img {
 
 .hero-action-card span {
   display: block;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255,255,255,.82);
   font-size: 14px;
   line-height: 1.55;
   font-weight: 700;
@@ -126,7 +120,7 @@ img {
   display: inline-flex;
   padding: 7px 10px;
   border-radius: 999px;
-  background: rgba(255, 159, 67, 0.18);
+  background: rgba(255,159,67,.18);
   color: #ffcf9b;
   font-size: 12px;
   font-weight: 900;
@@ -214,7 +208,7 @@ main {
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 8px;
-  box-shadow: 0 8px 18px rgba(15, 39, 66, 0.08);
+  box-shadow: 0 8px 18px rgba(15,39,66,.08);
 }
 
 .quick-card img {
@@ -264,7 +258,7 @@ main {
   border: 1px solid var(--line);
   color: var(--text);
   font-weight: 900;
-  box-shadow: 0 6px 14px rgba(15, 39, 66, 0.06);
+  box-shadow: 0 6px 14px rgba(15,39,66,.06);
 }
 
 .category-chip.active {
@@ -287,11 +281,10 @@ main {
   border-radius: 26px;
   padding: 14px;
   box-shadow: var(--shadow);
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
 
 .product-card:active {
-  transform: scale(0.995);
+  transform: scale(.995);
 }
 
 .brand-row {
@@ -346,11 +339,11 @@ main {
   font-weight: 950;
 }
 
-/* ===== 單包 / 箱購 ===== */
+/* ===== 單包 / 箱購：平等呈現 ===== */
 
 .buy-options {
   display: grid;
-  grid-template-columns: 1fr 1.08fr;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-top: 12px;
 }
@@ -364,35 +357,19 @@ main {
   overflow: hidden;
 }
 
-.case-box {
-  border: 2px solid var(--orange);
-  background: linear-gradient(180deg, #fff8ef 0%, #fff3df 100%);
-  box-shadow: 0 14px 28px rgba(244, 123, 32, 0.18);
+.case-box,
+.calm-case-box {
+  border: 1px solid var(--line);
+  background: #fbfdff;
+  box-shadow: none;
 }
 
 .case-box::after {
-  content: "";
-  position: absolute;
-  right: -34px;
-  top: -34px;
-  width: 86px;
-  height: 86px;
-  border-radius: 50%;
-  background: rgba(255, 159, 67, 0.2);
-  pointer-events: none;
+  display: none;
 }
 
 .case-ribbon {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--orange), var(--orange-dark));
-  color: white;
-  font-size: 13px;
-  font-weight: 950;
-  margin-bottom: 6px;
-  position: relative;
-  z-index: 2;
+  display: none;
 }
 
 .buy-title {
@@ -418,32 +395,24 @@ main {
 .reward-mini,
 .reward-strong {
   margin-top: 5px;
-  font-size: 12px;
-  font-weight: 900;
-  color: var(--teal);
+  font-size: 13px;
+  font-weight: 950;
+  color: var(--orange-dark);
 }
 
 .reward-strong {
   font-size: 15px;
-  color: var(--orange-dark);
 }
 
 .case-average {
   margin-top: 4px;
   font-size: 12px;
-  color: var(--navy);
-  font-weight: 900;
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .case-saving {
-  display: inline-block;
-  margin-top: 5px;
-  padding: 4px 7px;
-  border-radius: 999px;
-  background: rgba(247, 181, 0, 0.18);
-  color: #996800;
-  font-size: 12px;
-  font-weight: 950;
+  display: none;
 }
 
 .option-btn,
@@ -456,13 +425,14 @@ main {
   color: white;
   font-weight: 950;
   font-size: 14px;
-  box-shadow: 0 8px 18px rgba(15, 39, 66, 0.18);
+  box-shadow: 0 8px 18px rgba(15,39,66,.18);
 }
 
 .case-btn,
+.calm-case-btn,
 .add-btn {
-  background: linear-gradient(135deg, var(--orange), var(--orange-dark));
-  box-shadow: 0 8px 18px rgba(244, 123, 32, 0.24);
+  background: var(--navy);
+  box-shadow: 0 8px 18px rgba(15,39,66,.18);
 }
 
 /* ===== 底部補貨車 ===== */
@@ -482,9 +452,9 @@ main {
   justify-content: space-between;
   color: white;
   background:
-    radial-gradient(circle at 92% 20%, rgba(255, 159, 67, 0.22), transparent 28%),
+    radial-gradient(circle at 92% 20%, rgba(255,159,67,.22), transparent 28%),
     linear-gradient(135deg, var(--navy), #07192c);
-  box-shadow: 0 18px 38px rgba(15, 39, 66, 0.38);
+  box-shadow: 0 18px 38px rgba(15,39,66,.38);
 }
 
 .bottom-cart-left {
@@ -524,7 +494,7 @@ main {
 
 .bottom-cart-left small {
   display: block;
-  color: rgba(255, 255, 255, 0.76);
+  color: rgba(255,255,255,.76);
   font-size: 12px;
   margin-top: 2px;
   max-width: 265px;
@@ -565,7 +535,7 @@ main {
 .drawer-mask {
   position: absolute;
   inset: 0;
-  background: rgba(15, 39, 66, 0.28);
+  background: rgba(15,39,66,.28);
 }
 
 .drawer-panel {
@@ -577,7 +547,7 @@ main {
   background: white;
   border-radius: 28px 28px 0 0;
   padding: 16px;
-  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.13);
+  box-shadow: 0 -16px 40px rgba(0,0,0,.13);
   display: flex;
   flex-direction: column;
 }
@@ -675,7 +645,7 @@ main {
 }
 
 .primary-btn:disabled {
-  opacity: 0.68;
+  opacity: .68;
   cursor: not-allowed;
 }
 
@@ -753,7 +723,7 @@ main {
   padding: 12px;
   border-radius: 16px;
   background:
-    radial-gradient(circle at 92% 0%, rgba(247, 181, 0, 0.28), transparent 28%),
+    radial-gradient(circle at 92% 0%, rgba(247,181,0,.28), transparent 28%),
     var(--orange-soft);
   color: var(--orange-dark);
   font-weight: 900;
@@ -914,13 +884,8 @@ main {
 }
 
 @keyframes skeletonMove {
-  from {
-    background-position: 200% 0;
-  }
-
-  to {
-    background-position: -200% 0;
-  }
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
 
 .load-more-trigger {

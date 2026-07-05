@@ -1,3 +1,4 @@
 window.SHENDUIYOU_CONFIG = {
-  API_URL: "https://script.google.com/macros/s/AKfycbyGAbR9j363MTxwMb0LijlW_Ry-Cw_6BdSMSPLVz_P2xY3NVEc5oHCGAjXO-_7UC4JFAg/exec"
+  SUPABASE_URL: "https://kbxvdygiafmcnsivvudl.supabase.co",
+  SUPABASE_KEY: "sb_publishable_ZmX8EQwS2QTqMAyVNpOL1g_6elv21wx"
 };

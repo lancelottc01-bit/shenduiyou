@@ -122,4 +122,96 @@
             <strong id="cartRewardTotal">$0</strong>
           </div>
 
-          <button id="checkoutBtn" class="primary-btn" type="
+          <button id="checkoutBtn" class="primary-btn" type="button">採購確認</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="loginPage" class="checkout-page hidden">
+      <div class="page-head">
+        <button id="backFromLoginBtn" class="icon-btn" type="button">←</button>
+        <h2>店家登入</h2>
+      </div>
+
+      <div class="login-hint">
+        登入後才可以送出採購單，系統會以攤商編號建立訂單。
+      </div>
+
+      <form id="loginForm" class="checkout-form">
+        <label>
+          店家帳號
+          <input id="storeAccount" required placeholder="請輸入店家帳號，例如 A001" />
+        </label>
+
+        <label>
+          店家密碼
+          <input id="storePassword" required type="password" placeholder="請輸入店家密碼" />
+        </label>
+
+        <button id="loginBtn" class="primary-btn" type="submit">登入查看採購確認</button>
+      </form>
+    </div>
+
+    <div id="confirmPage" class="checkout-page hidden">
+      <div class="page-head">
+        <button id="backFromConfirmBtn" class="icon-btn" type="button">←</button>
+        <h2>採購確認</h2>
+      </div>
+
+      <section class="store-card">
+        <div class="store-card-head">
+          <p class="hello-text">
+            <span id="bossGreeting">老闆您好</span> 👋
+          </p>
+
+          <button id="logoutStoreBtn" class="text-btn small-text-btn" type="button">
+            切換店家
+          </button>
+        </div>
+
+        <div id="monthlyRewardRow" class="reward-stat hidden">
+          <span>目前本月回饋已累積</span>
+          <strong id="monthlyRewardText">$0</strong>
+        </div>
+
+        <p id="storeInfoText" class="muted"></p>
+      </section>
+
+      <section class="order-summary">
+        <h3>今天目前的採購車</h3>
+
+        <div id="confirmItems"></div>
+
+        <div class="total-row">
+          <span>採購小計</span>
+          <strong id="confirmSubtotal">$0</strong>
+        </div>
+
+        <div id="confirmRewardRow" class="total-row reward-row hidden">
+          <span>本次預估回饋</span>
+          <strong id="confirmReward">$0</strong>
+        </div>
+
+        <div id="confirmMonthlyAfterRow" class="total-row final-row hidden">
+          <span>送出後本月約累積</span>
+          <strong id="confirmMonthlyAfter">$0</strong>
+        </div>
+      </section>
+
+      <label class="note-label">
+        備註（選填）
+        <textarea id="orderNote" rows="3" placeholder="例如：下午三點後配送、請先電話聯絡"></textarea>
+      </label>
+
+      <button id="submitOrderBtn" class="primary-btn" type="button">送出採購單</button>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="js/config.js"></script>
+  <script defer src="js/supabase.js"></script>
+  <script defer src="js/app.js"></script>
+</body>
+</html>

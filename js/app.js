@@ -337,11 +337,16 @@ function renderProducts() {
           }
         </div>
 
-        <div class="product-content">
-          <h3>${escapeHtml(product.name)}</h3>
+       <div class="product-content">
+  <h3>${escapeHtml(product.name)}</h3>
 
-          ${rewardRate > 0 ? `<span class="reward-label">回饋 ${rewardRate}%</span>` : ""}
+  ${product.brand_supplier ? `
+    <div class="brand-supplier-line">
+      ${escapeHtml(product.brand_supplier)}
+    </div>
+  ` : ""}
 
+  ${rewardRate > 0 ? `<span class="reward-label">回饋 ${rewardRate}%</span>` : ""}
           <div class="purchase-options clean-purchase-options">
             <div class="purchase-option clean-purchase-option">
               <div>
@@ -378,7 +383,11 @@ function renderProducts() {
             ` : ""}
           </div>
 
-          ${product.description ? `<p class="product-desc">${escapeHtml(product.description)}</p>` : ""}
+         ${product.description ? `
+  <p class="product-desc product-desc-soft">
+    ${escapeHtml(product.description)}
+  </p>
+` : ""}
         </div>
       </article>
     `;

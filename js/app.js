@@ -1,762 +1,826 @@
+const sb = window.sdySupabase;
+
 const state = {
   products: [],
-  filtered: [],
-  category: '全部',
-  keyword: '',
-  cart: JSON.parse(localStorage.getItem('sdy_cart') || '{}'),
-  store: JSON.parse(localStorage.getItem('sdy_store') || 'null'),
-  renderIndex: 0,
-  pageSize: 20,
-  isRendering: false,
-  observer: null,
-  productMap: new Map()
+  filteredProducts: [],
+  categories: [],
+  activeCategory: "全部",
+  searchText: "",
+  cart: new Map(),
+  vendorAccount: null,
+  sessionUser: null,
+  monthlyReward: 0,
 };
 
-const $ = (id) => document.getElementById(id);
-const money = (n) => `$${Math.round(Number(n || 0)).toLocaleString('zh-TW')}`;
-const placeholder = 'https://placehold.co/600x600/F3F6FA/0F2742?text=%E7%A5%9E%E9%9A%8A%E5%8F%8B';
+const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[char]));
+document.addEventListener("DOMContentLoaded", init);
+
+async function init() {
+  bindEvents();
+  await restoreSession();
+  await loadProducts();
+  renderCart();
 }
 
-function toast(message) {
-  const el = $('toast');
-  if (!el) return;
-  el.textContent = message;
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 1800);
-}
-
-function safeImage(url) {
-  return String(url || '').trim() || placeholder;
-}
-
-function saveCart() {
-  localStorage.setItem('sdy_cart', JSON.stringify(state.cart));
-  renderCartBadge();
-}
-
-function saveStore(store) {
-  state.store = store;
-  localStorage.setItem('sdy_store', JSON.stringify(store));
-  renderCartBadge();
-}
-
-function logoutStore() {
-  state.store = null;
-  localStorage.removeItem('sdy_store');
-
-  if ($('confirmPage')) $('confirmPage').classList.add('hidden');
-  if ($('loginPage')) $('loginPage').classList.remove('hidden');
-
-  renderCartBadge();
-  toast('已切換店家，請重新登入');
-}
-
-function showLoadingUI() {
-  if ($('productTotal')) $('productTotal').textContent = '商品載入中...';
-
-  if ($('productGrid')) {
-    $('productGrid').innerHTML = `
-      <div class="loading-box">
-        <div class="loading-title">📦 耗材整理中</div>
-        <div class="loading-desc">正在整理餐飲耗材與價格<br>首次開啟約需數秒</div>
-        <div class="loading-tip">請稍候一下，補貨清單馬上就好 🚚</div>
-      </div>
-    `;
-  }
-
-  if ($('quickList')) {
-    $('quickList').innerHTML = `
-      <div class="skeleton-card"></div>
-      <div class="skeleton-card"></div>
-      <div class="skeleton-card"></div>
-    `;
-  }
-
-  if ($('categoryList')) {
-    $('categoryList').innerHTML = '<button class="category-chip active">載入中...</button>';
-  }
-}
-
-async function loadProducts() {
-  showLoadingUI();
-
-  try {
-    const rows = await API.getProducts();
-
-    state.products = rows
-      .map(normalizeProduct)
-      .filter(p => p.id && p.name && p.isVisible);
-
-    state.productMap = new Map(state.products.map(p => [p.id, p]));
-
-    applyFilter();
-    renderFeaturedList();
-    renderCategories();
-    renderCartBadge();
-  } catch (err) {
-    console.error(err);
-
-    if ($('productGrid')) {
-      $('productGrid').innerHTML = `
-        <div class="empty">商品讀取失敗：${escapeHtml(err.message || '請重新整理一次')}</div>
-      `;
-    }
-
-    if ($('quickList')) {
-      $('quickList').innerHTML = '<div class="empty">熱門商品讀取失敗</div>';
-    }
-
-    if ($('categoryList')) {
-      $('categoryList').innerHTML = '<button class="category-chip active">讀取失敗</button>';
-    }
-  }
-}
-
-function normalizeProduct(p) {
-  return {
-    id: String(p.id || '').trim(),
-    category: String(p.category || '其他').trim() || '其他',
-    brand: String(p.brand || '').trim(),
-    name: String(p.name || '').trim(),
-    spec: String(p.spec || '').trim(),
-
-    packQty: String(p.pack_qty || p.packQty || '').trim(),
-    packPrice: Number(p.pack_price || p.packPrice || 0),
-    packRewardPercent: Number(p.pack_reward_percent || p.packRewardPercent || 0),
-
-    caseQty: String(p.case_qty || p.caseQty || '').trim(),
-    casePrice: Number(p.case_price || p.casePrice || 0),
-    caseRewardPercent: Number(p.case_reward_percent || p.caseRewardPercent || 0),
-
-    image: String(p.image_url || p.image || placeholder).trim() || placeholder,
-    tags: String(p.tags || '').trim(),
-
-    isFeatured: Boolean(p.is_featured ?? p.isFeatured),
-    isRecommended: Boolean(p.is_recommended ?? p.isRecommended),
-    isVisible: p.is_visible === undefined ? true : Boolean(p.is_visible),
-    sort: Number(p.sort_order || p.sort || 9999)
-  };
-}
-
-function applyFilter() {
-  const kw = state.keyword.trim().toLowerCase();
-
-  let results = state.products.filter(p => {
-    const matchCategory = state.category === '全部' || p.category === state.category;
-    const searchText = `${p.name} ${p.category} ${p.brand} ${p.spec} ${p.tags}`.toLowerCase();
-    return matchCategory && (!kw || searchText.includes(kw));
+function bindEvents() {
+  $("#searchInput")?.addEventListener("input", (event) => {
+    state.searchText = event.target.value.trim().toLowerCase();
+    applyProductFilters();
   });
 
-  results.sort((a, b) => a.sort - b.sort);
-  state.filtered = results;
-  resetProductRender();
+  $("#reloadBtn")?.addEventListener("click", () => {
+    state.activeCategory = "全部";
+    state.searchText = "";
+
+    if ($("#searchInput")) {
+      $("#searchInput").value = "";
+    }
+
+    applyProductFilters();
+  });
+
+  $("#cartBtn")?.addEventListener("click", openCart);
+
+  $$("[data-close='cart']").forEach((el) => {
+    el.addEventListener("click", closeCart);
+  });
+
+  $("#checkoutBtn")?.addEventListener("click", handleCheckoutClick);
+
+  $("#backFromLoginBtn")?.addEventListener("click", () => {
+    hidePage("loginPage");
+  });
+
+  $("#backFromConfirmBtn")?.addEventListener("click", () => {
+    hidePage("confirmPage");
+  });
+
+  $("#loginForm")?.addEventListener("submit", handleVendorLogin);
+  $("#logoutStoreBtn")?.addEventListener("click", handleVendorLogout);
+  $("#submitOrderBtn")?.addEventListener("click", submitOrder);
 }
 
-function resetProductRender() {
-  state.renderIndex = 0;
-  state.isRendering = false;
+/* =========================
+   Supabase Session
+========================= */
 
-  if (state.observer) state.observer.disconnect();
+async function restoreSession() {
+  const { data } = await sb.auth.getSession();
 
-  if ($('productTotal')) {
-    $('productTotal').textContent = `${state.filtered.length} 件`;
-  }
-
-  const grid = $('productGrid');
-  if (!grid) return;
-
-  if (!state.filtered.length) {
-    grid.innerHTML = '<div class="empty">找不到商品，可以直接傳訊息給業務。</div>';
+  if (!data.session?.user) {
+    state.sessionUser = null;
+    state.vendorAccount = null;
     return;
   }
 
-  grid.innerHTML = '';
-  setupInfiniteScroll();
-  renderNextProducts();
+  state.sessionUser = data.session.user;
+  await loadVendorAccount();
 }
 
-function renderNextProducts() {
-  if (state.isRendering || state.renderIndex >= state.filtered.length) return;
-
-  state.isRendering = true;
-
-  const grid = $('productGrid');
-  const fragment = document.createDocumentFragment();
-  const start = state.renderIndex;
-  const end = Math.min(start + state.pageSize, state.filtered.length);
-
-  state.filtered.slice(start, end).forEach(product => {
-    const template = document.createElement('template');
-    template.innerHTML = productCard(product).trim();
-    fragment.appendChild(template.content.firstElementChild);
-  });
-
-  grid.appendChild(fragment);
-  state.renderIndex = end;
-  state.isRendering = false;
-  addLoadMoreTrigger();
+function vendorEmailFromCode(vendorCode) {
+  return `${String(vendorCode || "").trim().toLowerCase()}@stall.shenduiyou.local`;
 }
 
-function addLoadMoreTrigger() {
-  const grid = $('productGrid');
-  const old = $('loadMoreTrigger');
+async function handleVendorLogin(event) {
+  event.preventDefault();
 
-  if (old) old.remove();
-  if (!grid || state.renderIndex >= state.filtered.length) return;
+  const vendorCode = $("#storeAccount").value.trim().toUpperCase();
+  const password = $("#storePassword").value.trim();
 
-  const trigger = document.createElement('div');
-  trigger.id = 'loadMoreTrigger';
-  trigger.className = 'load-more-trigger';
-  trigger.textContent = '繼續往下滑看更多耗材';
-
-  grid.appendChild(trigger);
-
-  if (state.observer) {
-    state.observer.observe(trigger);
+  if (!vendorCode || !password) {
+    toast("請輸入帳號與密碼");
+    return;
   }
-}
 
-function setupInfiniteScroll() {
-  if (state.observer) state.observer.disconnect();
+  const email = vendorEmailFromCode(vendorCode);
 
-  state.observer = new IntersectionObserver(entries => {
-    if (!entries[0].isIntersecting) return;
-
-    const trigger = $('loadMoreTrigger');
-    if (trigger) trigger.remove();
-
-    requestAnimationFrame(renderNextProducts);
-  }, {
-    root: null,
-    rootMargin: '700px',
-    threshold: 0
+  const { data, error } = await sb.auth.signInWithPassword({
+    email,
+    password,
   });
+
+  if (error) {
+    toast("帳號或密碼錯誤");
+    return;
+  }
+
+  state.sessionUser = data.user;
+
+  const ok = await loadVendorAccount();
+
+  if (!ok) {
+    await sb.auth.signOut();
+    state.sessionUser = null;
+    state.vendorAccount = null;
+    toast("此攤商帳號尚未啟用");
+    return;
+  }
+
+  hidePage("loginPage");
+  await openConfirmPage();
 }
 
-function renderFeaturedList() {
-  const featured = state.products
-    .filter(p => p.isFeatured)
-    .slice(0, 10);
+async function loadVendorAccount() {
+  if (!state.sessionUser?.id) {
+    state.vendorAccount = null;
+    return false;
+  }
 
-  $('quickList').innerHTML = featured.length
-    ? featured.map(productCardSmall).join('')
-    : '<div class="empty">近期熱門商品整理中</div>';
+  const { data, error } = await sb
+    .from("vendor_accounts")
+    .select("*")
+    .eq("auth_user_id", state.sessionUser.id)
+    .eq("is_active", true)
+    .single();
+
+  if (error || !data) {
+    state.vendorAccount = null;
+    return false;
+  }
+
+  state.vendorAccount = data;
+  await loadMonthlyReward();
+  return true;
+}
+
+async function handleVendorLogout() {
+  await sb.auth.signOut();
+
+  state.sessionUser = null;
+  state.vendorAccount = null;
+  state.monthlyReward = 0;
+
+  hidePage("confirmPage");
+  showPage("loginPage");
+  toast("已切換店家");
+}
+
+/* =========================
+   商品
+========================= */
+
+async function loadProducts() {
+  const productGrid = $("#productGrid");
+  const productTotal = $("#productTotal");
+
+  if (productGrid) {
+    productGrid.innerHTML = `
+      <div class="loading-box">
+        <div class="loading-title">📦 耗材整理中</div>
+        <div class="loading-desc">正在讀取後台商品資料</div>
+        <div class="loading-tip">請稍候一下 🚚</div>
+      </div>
+    `;
+  }
+
+  const { data, error } = await sb
+    .from("products")
+    .select("*")
+    .eq("is_visible", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
+
+    if (productGrid) {
+      productGrid.innerHTML = `<div class="empty-box">商品讀取失敗，請稍後再試。</div>`;
+    }
+
+    if (productTotal) {
+      productTotal.textContent = "商品讀取失敗";
+    }
+
+    toast("商品讀取失敗");
+    return;
+  }
+
+  state.products = data || [];
+  state.categories = buildCategories(state.products);
+
+  applyProductFilters();
+}
+
+function buildCategories(products) {
+  const set = new Set();
+
+  products.forEach((product) => {
+    if (product.category) {
+      set.add(product.category);
+    }
+  });
+
+  return ["全部", ...Array.from(set)];
+}
+
+function applyProductFilters() {
+  const keyword = state.searchText;
+  const category = state.activeCategory;
+
+  state.filteredProducts = state.products.filter((product) => {
+    const matchesCategory = category === "全部" || product.category === category;
+
+    const text = [
+      product.name,
+      product.sku,
+      product.brand_supplier,
+      product.category,
+      product.package_qty,
+      product.unit,
+      product.box_spec,
+      product.box_price,
+      product.description,
+      Array.isArray(product.tags) ? product.tags.join(" ") : "",
+    ].join(" ").toLowerCase();
+
+    const matchesSearch = !keyword || text.includes(keyword);
+
+    return matchesCategory && matchesSearch;
+  });
+
+  renderCategories();
+  renderQuickList();
+  renderProducts();
 }
 
 function renderCategories() {
-  const categories = [
-    '全部',
-    ...new Set(state.products.map(p => p.category).filter(Boolean))
-  ];
+  const categoryList = $("#categoryList");
+  if (!categoryList) return;
 
-  $('categoryList').innerHTML = categories.map(category => `
-    <button
-      class="category-chip ${category === state.category ? 'active' : ''}"
-      data-category="${escapeHtml(category)}"
-      type="button"
-    >
-      ${escapeHtml(category)}
-    </button>
-  `).join('');
-}
-
-function productLabels(product) {
-  const labels = [];
-
-  if (product.isFeatured) labels.push('<span>🔥 熱銷</span>');
-  if (product.isRecommended) labels.push('<span>⭐ 推薦</span>');
-
-  return labels.length
-    ? `<div class="product-labels">${labels.join('')}</div>`
-    : '';
-}
-
-function rewardText(percent, price) {
-  const amount = Math.round(Number(price || 0) * Number(percent || 0) / 100);
-  return `${Number(percent || 0)}%｜約 ${money(amount)}`;
-}
-
-function averageCasePrice(product) {
-  const caseText = String(product.caseQty || '');
-  const match = caseText.match(/(\d+)/);
-
-  if (!match) return '';
-
-  const qty = Number(match[1]);
-
-  if (!qty || !product.casePrice) return '';
-
-  return money(product.casePrice / qty);
-}
-
-function productCardSmall(product) {
-  return `
-    <article class="quick-card">
-      <img
-        src="${escapeHtml(safeImage(product.image))}"
-        alt="${escapeHtml(product.name)}"
-        loading="lazy"
-        decoding="async"
-        onerror="this.src='${placeholder}'"
-      />
-
-      <h3>${escapeHtml(product.name)}</h3>
-
-      <div class="quick-brand">
-        ${escapeHtml(product.brand || product.category)}
-      </div>
-
-      <button
-        class="add-btn"
-        data-add-id="${escapeHtml(product.id)}"
-        data-add-type="case"
-        type="button"
-      >
-        ＋箱購
-      </button>
-    </article>
-  `;
-}
-
-function productCard(product) {
-  const avgPrice = averageCasePrice(product);
-
-  return `
-    <article class="product-card">
-      <div class="brand-row">
-        <strong>${escapeHtml(product.brand || '神隊友')}</strong>
-        <span>${escapeHtml(product.category)}</span>
-      </div>
-
-      <img
-        src="${escapeHtml(safeImage(product.image))}"
-        alt="${escapeHtml(product.name)}"
-        loading="lazy"
-        decoding="async"
-        onerror="this.src='${placeholder}'"
-      />
-
-      ${productLabels(product)}
-
-      <div class="product-meta">
-        <h3>${escapeHtml(product.name)}</h3>
-        <div class="muted">${escapeHtml(product.brand || '未標示')}｜${escapeHtml(product.spec || '-')}</div>
-      </div>
-
-      <div class="buy-options calm-options">
-        <div class="buy-box pack-box">
-          <div class="buy-title">單包</div>
-          <div class="buy-unit">${escapeHtml(product.packQty || '-')}</div>
-          <div class="buy-price">${money(product.packPrice)}</div>
-          <div class="reward-mini">🎁 回饋 ${rewardText(product.packRewardPercent, product.packPrice)}</div>
-
-          <button
-            class="option-btn"
-            data-add-id="${escapeHtml(product.id)}"
-            data-add-type="pack"
-            type="button"
-          >
-            ＋單包
-          </button>
-        </div>
-
-        <div class="buy-box case-box calm-case-box">
-          <div class="buy-title">箱購</div>
-          <div class="buy-unit">${escapeHtml(product.caseQty || '-')}</div>
-          <div class="buy-price">${money(product.casePrice)}</div>
-
-          ${avgPrice ? `<div class="case-average">平均每包 ${avgPrice}</div>` : ''}
-
-          <div class="reward-strong">🎁 回饋 ${rewardText(product.caseRewardPercent, product.casePrice)}</div>
-
-          <button
-            class="option-btn case-btn calm-case-btn"
-            data-add-id="${escapeHtml(product.id)}"
-            data-add-type="case"
-            type="button"
-          >
-            ＋箱購
-          </button>
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-function makeCartKey(productId, type) {
-  return `${productId}__${type}`;
-}
-
-function parseCartKey(key) {
-  const [id, type] = String(key).split('__');
-  return { id, type };
-}
-
-function addToCart(productId, type) {
-  const product = state.productMap.get(productId);
-
-  if (!product) return toast('找不到商品');
-
-  if (type === 'pack' && !product.packPrice) {
-    return toast('此商品尚未設定單包價格');
-  }
-
-  if (type === 'case' && !product.casePrice) {
-    return toast('此商品尚未設定箱購價格');
-  }
-
-  const key = makeCartKey(productId, type);
-  state.cart[key] = (state.cart[key] || 0) + 1;
-  saveCart();
-
-  toast(`已加入${type === 'case' ? '箱購' : '單包'}到補貨車`);
-}
-
-function changeQty(key, delta) {
-  const next = (state.cart[key] || 0) + delta;
-
-  if (next <= 0) delete state.cart[key];
-  else state.cart[key] = next;
-
-  saveCart();
-  renderCart();
-  renderConfirm();
-}
-
-function getCartItems() {
-  return Object.entries(state.cart)
-    .map(([key, qty]) => {
-      const { id, type } = parseCartKey(key);
-      const product = state.productMap.get(id);
-
-      if (!product) return null;
-
-      const isCase = type === 'case';
-      const price = isCase ? product.casePrice : product.packPrice;
-      const rewardPercent = isCase ? product.caseRewardPercent : product.packRewardPercent;
-      const unitText = isCase ? product.caseQty : product.packQty;
-      const subtotal = Math.round(price * qty);
-      const rewardAmount = Math.round(subtotal * rewardPercent / 100);
-
-      return {
-        key,
-        id,
-        type,
-        typeName: isCase ? '箱購' : '單包',
-        name: product.name,
-        brand: product.brand,
-        image: product.image,
-        qty,
-        unitText,
-        price,
-        rewardPercent,
-        subtotal,
-        rewardAmount
-      };
+  categoryList.innerHTML = state.categories
+    .map((category) => {
+      return `
+        <button
+          class="category-chip ${category === state.activeCategory ? "active" : ""}"
+          type="button"
+          data-category="${escapeAttr(category)}"
+        >
+          ${escapeHtml(category)}
+        </button>
+      `;
     })
-    .filter(Boolean);
+    .join("");
+
+  $$(".category-chip", categoryList).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.activeCategory = btn.dataset.category;
+      applyProductFilters();
+    });
+  });
 }
 
-function getCartTotals() {
-  const items = getCartItems();
+function renderQuickList() {
+  const quickList = $("#quickList");
+  if (!quickList) return;
 
-  return {
-    items,
-    count: items.reduce((sum, item) => sum + item.qty, 0),
-    subtotal: items.reduce((sum, item) => sum + item.subtotal, 0),
-    reward: items.reduce((sum, item) => sum + item.rewardAmount, 0)
-  };
-}
+  const featured = state.products
+    .filter((product) => product.is_featured)
+    .slice(0, 8);
 
-function renderCartBadge() {
-  const totals = getCartTotals();
+  const list = featured.length ? featured : state.products.slice(0, 8);
 
-  if ($('cartCount')) $('cartCount').textContent = totals.count;
-  if ($('bottomCartTotal')) $('bottomCartTotal').textContent = money(totals.subtotal);
-
-  if ($('cartSummaryText')) {
-    if (!totals.count) {
-      $('cartSummaryText').textContent = '尚未加入商品';
-      return;
-    }
-
-    const rewardInfo = `已選 ${totals.count} 件｜本次回饋約 ${money(totals.reward)}`;
-
-    if (state.store) {
-      $('cartSummaryText').textContent = `${rewardInfo}｜本月 ${money(state.store.monthlyReward || 0)}`;
-    } else {
-      $('cartSummaryText').textContent = `${rewardInfo}｜登入看累積`;
-    }
+  if (list.length === 0) {
+    quickList.innerHTML = `<div class="empty-box">目前尚無熱門商品</div>`;
+    return;
   }
+
+  quickList.classList.remove("skeleton-row");
+
+  quickList.innerHTML = list.map((product) => {
+    const rewardRate = Number(product.reward_rate || 0);
+    const hasBox = product.box_enabled && Number(product.box_price || 0) > 0;
+
+    return `
+      <article class="quick-card" data-product-id="${product.id}">
+        ${product.image_url
+          ? `<img src="${escapeAttr(product.image_url)}" alt="${escapeAttr(product.name)}" />`
+          : `<div class="product-image-placeholder">無圖片</div>`
+        }
+
+        <strong>${escapeHtml(product.name)}</strong>
+        <span>${money(product.price)}</span>
+
+        ${hasBox ? `<small class="box-price-text">箱購 ${money(product.box_price)}</small>` : ""}
+        ${rewardRate > 0 ? `<small class="reward-label">回饋 ${rewardRate}%</small>` : ""}
+
+        <button class="small-add-btn" type="button" data-add-product="${product.id}">
+          加入
+        </button>
+      </article>
+    `;
+  }).join("");
+
+  $$("[data-add-product]", quickList).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      addToCart(btn.dataset.addProduct);
+    });
+  });
+}
+
+function renderProducts() {
+  const productGrid = $("#productGrid");
+  const productTotal = $("#productTotal");
+
+  if (!productGrid) return;
+
+  if (productTotal) {
+    productTotal.textContent = `${state.filteredProducts.length} 項商品`;
+  }
+
+  if (state.filteredProducts.length === 0) {
+    productGrid.innerHTML = `<div class="empty-box">找不到符合條件的商品。</div>`;
+    return;
+  }
+
+  productGrid.innerHTML = state.filteredProducts.map((product) => {
+    const rewardRate = Number(product.reward_rate || 0);
+    const hasBox = product.box_enabled && Number(product.box_price || 0) > 0;
+
+    return `
+      <article class="product-card">
+        <div class="product-image-wrap">
+          ${product.image_url
+            ? `<img class="product-image" src="${escapeAttr(product.image_url)}" alt="${escapeAttr(product.name)}" loading="lazy" />`
+            : `<div class="product-image-placeholder">無圖片</div>`
+          }
+        </div>
+
+        <div class="product-content">
+          <div class="product-category">${escapeHtml(product.category || "未分類")}</div>
+          <h3>${escapeHtml(product.name)}</h3>
+
+          <p class="product-spec">
+            單包：${escapeHtml(product.package_qty || "")}
+            ${escapeHtml(product.unit || "")}
+          </p>
+
+          ${hasBox ? `
+            <p class="product-spec">
+              單箱：${escapeHtml(product.box_spec || "")}｜${money(product.box_price)}
+            </p>
+          ` : ""}
+
+          ${product.description ? `<p class="product-desc">${escapeHtml(product.description)}</p>` : ""}
+
+          <div class="product-footer">
+            <div>
+              <strong class="product-price">${money(product.price)}</strong>
+              ${rewardRate > 0 ? `<span class="reward-label">回饋 ${rewardRate}%</span>` : ""}
+            </div>
+
+            <button class="add-btn" type="button" data-add-product="${product.id}">
+              加入補貨車
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  $$("[data-add-product]", productGrid).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      addToCart(btn.dataset.addProduct);
+    });
+  });
+}
+
+/* =========================
+   補貨車
+========================= */
+
+function addToCart(productId) {
+  const product = state.products.find((item) => item.id === productId);
+
+  if (!product) {
+    toast("找不到商品");
+    return;
+  }
+
+  const current = state.cart.get(productId);
+
+  if (current) {
+    current.quantity += 1;
+  } else {
+    state.cart.set(productId, {
+      id: product.id,
+      name: product.name,
+      price: Number(product.price || 0),
+      reward_rate: Number(product.reward_rate || 0),
+      image_url: product.image_url || "",
+      package_qty: product.package_qty || "",
+      unit: product.unit || "",
+      box_spec: product.box_spec || "",
+      box_price: Number(product.box_price || 0),
+      box_enabled: Boolean(product.box_enabled),
+      quantity: 1,
+    });
+  }
+
+  renderCart();
+  toast("已加入補貨車");
+}
+
+function changeCartQty(productId, diff) {
+  const item = state.cart.get(productId);
+
+  if (!item) return;
+
+  item.quantity += diff;
+
+  if (item.quantity <= 0) {
+    state.cart.delete(productId);
+  }
+
+  renderCart();
 }
 
 function renderCart() {
-  const { items, subtotal, reward } = getCartTotals();
+  const items = Array.from(state.cart.values());
+  const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+  const subtotal = getCartSubtotal();
+  const reward = getCartReward();
 
-  if ($('cartItems')) {
-    $('cartItems').innerHTML = items.length
-      ? items.map(cartItemHtml).join('')
-      : '<div class="empty">補貨車目前是空的</div>';
+  if ($("#cartCount")) $("#cartCount").textContent = totalQty;
+  if ($("#bottomCartTotal")) $("#bottomCartTotal").textContent = money(subtotal);
+  if ($("#cartTotal")) $("#cartTotal").textContent = money(subtotal);
+  if ($("#cartRewardTotal")) $("#cartRewardTotal").textContent = money(reward);
+
+  if ($("#cartRewardRow")) {
+    $("#cartRewardRow").classList.toggle("hidden", reward <= 0);
   }
 
-  if ($('cartTotal')) $('cartTotal').textContent = money(subtotal);
-  if ($('cartRewardTotal')) $('cartRewardTotal').textContent = money(reward);
+  if ($("#cartSummaryText")) {
+    $("#cartSummaryText").textContent = totalQty > 0
+      ? `${totalQty} 件商品`
+      : "尚未加入商品";
+  }
+
+  renderCartItems();
 }
 
-function cartItemHtml(item) {
-  return `
-    <div class="cart-item">
-      <img
-        src="${escapeHtml(safeImage(item.image))}"
-        alt="${escapeHtml(item.name)}"
-        loading="lazy"
-        decoding="async"
-        onerror="this.src='${placeholder}'"
-      />
+function renderCartItems() {
+  const cartItems = $("#cartItems");
+  if (!cartItems) return;
 
-      <div>
-        <strong>${escapeHtml(item.name)}</strong>
-        <div class="muted">${escapeHtml(item.typeName)}｜${escapeHtml(item.unitText)}</div>
-        <div class="muted">
-          ${money(item.price)} / 小計 ${money(item.subtotal)} / 回饋 ${money(item.rewardAmount)}
+  const items = Array.from(state.cart.values());
+
+  if (items.length === 0) {
+    cartItems.innerHTML = `<div class="empty-box">補貨車是空的。</div>`;
+    return;
+  }
+
+  cartItems.innerHTML = items.map((item) => {
+    const hasBox = item.box_enabled && Number(item.box_price || 0) > 0;
+    const rewardRate = Number(item.reward_rate || 0);
+
+    return `
+      <div class="cart-item">
+        <div class="cart-item-main">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>單包：${escapeHtml(item.package_qty || "")} ${escapeHtml(item.unit || "")}</span>
+
+          ${hasBox ? `
+            <span>單箱：${escapeHtml(item.box_spec || "")}｜${money(item.box_price)}</span>
+          ` : ""}
+
+          ${rewardRate > 0 ? `
+            <span class="reward-label">回饋 ${rewardRate}%</span>
+          ` : ""}
+
+          <small>${money(item.price)} / 小計 ${money(item.price * item.quantity)}</small>
         </div>
 
-        <div class="qty-row">
-          <button class="qty-btn" data-qty-key="${escapeHtml(item.key)}" data-delta="-1" type="button">−</button>
-          <strong>${item.qty}</strong>
-          <button class="qty-btn" data-qty-key="${escapeHtml(item.key)}" data-delta="1" type="button">＋</button>
+        <div class="qty-control">
+          <button type="button" data-cart-minus="${item.id}">−</button>
+          <span>${item.quantity}</span>
+          <button type="button" data-cart-plus="${item.id}">＋</button>
         </div>
       </div>
-    </div>
-  `;
+    `;
+  }).join("");
+
+  $$("[data-cart-minus]", cartItems).forEach((btn) => {
+    btn.addEventListener("click", () => changeCartQty(btn.dataset.cartMinus, -1));
+  });
+
+  $$("[data-cart-plus]", cartItems).forEach((btn) => {
+    btn.addEventListener("click", () => changeCartQty(btn.dataset.cartPlus, 1));
+  });
 }
 
-async function handleLogin(event) {
-  event.preventDefault();
-
-  const account = $('storeAccount').value.trim();
-  const password = $('storePassword').value.trim();
-
-  if (!account || !password) return toast('請輸入帳號密碼');
-
-  const btn = $('loginBtn');
-  btn.disabled = true;
-  btn.textContent = '登入中...';
-
-  try {
-    const result = await API.storeLogin(account, password);
-
-    if (!result.ok) throw new Error(result.message || '登入失敗');
-
-    saveStore(result.store);
-    $('loginPage').classList.add('hidden');
-
-    renderConfirm();
-    $('confirmPage').classList.remove('hidden');
-    toast('登入成功');
-  } catch (err) {
-    console.error(err);
-    toast(err.message || '登入失敗');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '登入查看採購確認';
-  }
+function getCartSubtotal() {
+  return Array.from(state.cart.values()).reduce((sum, item) => {
+    return sum + Number(item.price || 0) * Number(item.quantity || 0);
+  }, 0);
 }
 
-function renderConfirm() {
-  const store = state.store;
-  if (!store) return;
+function getCartReward() {
+  return Array.from(state.cart.values()).reduce((sum, item) => {
+    const subtotal = Number(item.price || 0) * Number(item.quantity || 0);
+    const rate = Number(item.reward_rate || 0);
 
-  const { items, subtotal, reward } = getCartTotals();
-  const boss = store.bossName || store.storeName || '老闆';
+    if (rate <= 0) {
+      return sum;
+    }
 
-  if ($('bossGreeting')) $('bossGreeting').textContent = `${boss}您好`;
-  if ($('monthlyRewardText')) $('monthlyRewardText').textContent = money(store.monthlyReward || 0);
+    return sum + subtotal * (rate / 100);
+  }, 0);
+}
 
-  if ($('storeInfoText')) {
-    $('storeInfoText').textContent = `${store.storeName || ''}｜${store.level || '一般店'}｜業務 ${store.salesName || '-'}`;
+function openCart() {
+  $("#cartDrawer")?.classList.remove("hidden");
+  renderCart();
+}
+
+function closeCart() {
+  $("#cartDrawer")?.classList.add("hidden");
+}
+
+/* =========================
+   確認與送單
+========================= */
+
+async function handleCheckoutClick() {
+  if (state.cart.size === 0) {
+    toast("請先加入商品");
+    return;
   }
 
-  if ($('confirmItems')) {
-    $('confirmItems').innerHTML = items.length
-      ? items.map(item => `
-        <div class="summary-line">
-          <span>${escapeHtml(item.name)}｜${escapeHtml(item.typeName)} × ${item.qty}</span>
-          <span>${money(item.subtotal)}｜回饋 ${money(item.rewardAmount)}</span>
+  closeCart();
+
+  if (!state.vendorAccount) {
+    showPage("loginPage");
+    return;
+  }
+
+  await openConfirmPage();
+}
+
+async function openConfirmPage() {
+  if (!state.vendorAccount) {
+    showPage("loginPage");
+    return;
+  }
+
+  await loadMonthlyReward();
+
+  const vendorCode = state.vendorAccount.vendor_code;
+
+  if ($("#bossGreeting")) {
+    $("#bossGreeting").textContent = `${vendorCode} 老闆您好`;
+  }
+
+  if ($("#monthlyRewardText")) {
+    $("#monthlyRewardText").textContent = money(state.monthlyReward);
+  }
+
+  if ($("#monthlyRewardRow")) {
+    $("#monthlyRewardRow").classList.toggle("hidden", state.monthlyReward <= 0);
+  }
+
+  if ($("#storeInfoText")) {
+    $("#storeInfoText").textContent = `目前登入攤商編號：${vendorCode}。完整店家資料由公司內部主機管理，本系統不顯示地址與店名。`;
+  }
+
+  renderConfirmItems();
+  showPage("confirmPage");
+}
+
+function renderConfirmItems() {
+  const items = Array.from(state.cart.values());
+  const confirmItems = $("#confirmItems");
+
+  if (!confirmItems) return;
+
+  confirmItems.innerHTML = items.map((item) => {
+    const hasBox = item.box_enabled && Number(item.box_price || 0) > 0;
+    const rewardRate = Number(item.reward_rate || 0);
+
+    return `
+      <div class="confirm-item">
+        <div>
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>× ${item.quantity}</span>
+          <small>單包：${escapeHtml(item.package_qty || "")} ${escapeHtml(item.unit || "")}</small>
+
+          ${hasBox ? `
+            <small>單箱：${escapeHtml(item.box_spec || "")}｜${money(item.box_price)}</small>
+          ` : ""}
+
+          ${rewardRate > 0 ? `
+            <small class="reward-label">回饋 ${rewardRate}%</small>
+          ` : ""}
         </div>
-      `).join('')
-      : '<div class="empty">採購車目前是空的</div>';
+
+        <span>${money(item.price * item.quantity)}</span>
+      </div>
+    `;
+  }).join("");
+
+  const subtotal = getCartSubtotal();
+  const reward = getCartReward();
+
+  if ($("#confirmSubtotal")) {
+    $("#confirmSubtotal").textContent = money(subtotal);
   }
 
-  if ($('confirmSubtotal')) $('confirmSubtotal').textContent = money(subtotal);
-  if ($('confirmReward')) $('confirmReward').textContent = money(reward);
-  if ($('confirmMonthlyAfter')) {
-    $('confirmMonthlyAfter').textContent = money(Number(store.monthlyReward || 0) + reward);
+  if ($("#confirmReward")) {
+    $("#confirmReward").textContent = money(reward);
+  }
+
+  if ($("#confirmMonthlyAfter")) {
+    $("#confirmMonthlyAfter").textContent = money(state.monthlyReward + reward);
+  }
+
+  if ($("#confirmRewardRow")) {
+    $("#confirmRewardRow").classList.toggle("hidden", reward <= 0);
+  }
+
+  if ($("#confirmMonthlyAfterRow")) {
+    $("#confirmMonthlyAfterRow").classList.toggle("hidden", reward <= 0 && state.monthlyReward <= 0);
   }
 }
 
 async function submitOrder() {
-  const store = state.store;
-  const { items, subtotal } = getCartTotals();
+  if (!state.vendorAccount) {
+    toast("請先登入");
+    showPage("loginPage");
+    return;
+  }
 
-  if (!store) return toast('請先登入店家帳號');
-  if (!items.length) return toast('補貨車是空的');
+  if (state.cart.size === 0) {
+    toast("補貨車是空的");
+    return;
+  }
 
-  const btn = $('submitOrderBtn');
-  btn.disabled = true;
-  btn.textContent = '送出中...';
+  const btn = $("#submitOrderBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "送出中...";
+  }
 
   try {
-    const payload = {
-      storeId: store.storeId,
-      account: store.account,
-      note: $('orderNote') ? $('orderNote').value.trim() : '',
-      items: items.map(item => ({
-        id: item.id,
-        type: item.type,
-        typeName: item.typeName,
-        name: item.name,
-        brand: item.brand,
-        qty: item.qty,
-        unitText: item.unitText,
-        price: item.price,
-        rewardPercent: item.rewardPercent
-      }))
-    };
+    const cartItems = Array.from(state.cart.values());
+    const totalAmount = getCartSubtotal();
+    const note = $("#orderNote")?.value.trim() || "";
 
-    const result = await API.createOrder(payload);
+    const { data: order, error: orderError } = await sb
+      .from("orders")
+      .insert({
+        vendor_auth_user_id: state.sessionUser.id,
+        vendor_code: state.vendorAccount.vendor_code,
+        total_amount: totalAmount,
+        customer_note: note || null,
+      })
+      .select()
+      .single();
 
-    if (!result.ok) throw new Error(result.message || '採購單送出失敗');
+    if (orderError) {
+      throw orderError;
+    }
 
-    state.cart = {};
-    saveCart();
+    const orderItems = cartItems.map((item) => ({
+      order_id: order.id,
+      product_id: item.id,
+      product_name: item.name,
+      quantity: item.quantity,
+      unit_price: item.price,
+      subtotal: Number(item.price || 0) * Number(item.quantity || 0),
+    }));
 
-    if (result.store) saveStore(result.store);
+    const { error: itemsError } = await sb
+      .from("order_items")
+      .insert(orderItems);
 
-    $('confirmPage').innerHTML = `
-      <div class="success-page">
-        <div class="success-icon">✅</div>
-        <h2>採購單已送出</h2>
-        <p>我們會依序為您整理補貨需求，並由業務或配送人員確認。</p>
+    if (itemsError) {
+      throw itemsError;
+    }
 
-        <div class="success-card">
-          <div>採購單號</div>
-          <strong>${escapeHtml(result.orderId)}</strong>
+    state.cart.clear();
 
-          <div>本次採購金額</div>
-          <strong>${money(result.subtotal || subtotal)}</strong>
+    if ($("#orderNote")) {
+      $("#orderNote").value = "";
+    }
 
-          <div>本次回饋</div>
-          <strong>${money(result.rewardAmount || 0)}</strong>
-
-          <div>本月累積回饋</div>
-          <strong>${money(result.monthlyRewardAfter || 0)}</strong>
-        </div>
-
-        <button class="primary-btn" type="button" onclick="location.reload()">
-          回到補貨首頁
-        </button>
-      </div>
-    `;
-  } catch (err) {
-    console.error(err);
-    toast(err.message || '送出失敗');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '送出採購單';
-  }
-}
-
-let searchTimer = null;
-
-function bindEvents() {
-  $('searchInput').addEventListener('input', e => {
-    clearTimeout(searchTimer);
-
-    searchTimer = setTimeout(() => {
-      state.keyword = e.target.value;
-      applyFilter();
-    }, 250);
-  });
-
-  $('reloadBtn').addEventListener('click', () => {
-    state.category = '全部';
-    state.keyword = '';
-    $('searchInput').value = '';
-    applyFilter();
-    renderCategories();
-  });
-
-  $('cartBtn').addEventListener('click', () => {
     renderCart();
-    $('cartDrawer').classList.remove('hidden');
-  });
+    hidePage("confirmPage");
 
-  $('checkoutBtn').addEventListener('click', () => {
-    if (!getCartItems().length) return toast('請先加入商品');
-
-    $('cartDrawer').classList.add('hidden');
-
-    if (state.store) {
-      renderConfirm();
-      $('confirmPage').classList.remove('hidden');
-    } else {
-      $('loginPage').classList.remove('hidden');
+    toast("採購單已送出");
+  } catch (error) {
+    console.error(error);
+    toast(`送出失敗：${error.message || "請稍後再試"}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "送出採購單";
     }
-  });
-
-  $('backFromLoginBtn').addEventListener('click', () => {
-    $('loginPage').classList.add('hidden');
-  });
-
-  $('backFromConfirmBtn').addEventListener('click', () => {
-    $('confirmPage').classList.add('hidden');
-  });
-
-  $('loginForm').addEventListener('submit', handleLogin);
-  $('submitOrderBtn').addEventListener('click', submitOrder);
-
-  if ($('logoutStoreBtn')) {
-    $('logoutStoreBtn').addEventListener('click', logoutStore);
   }
-
-  document.body.addEventListener('click', event => {
-    const addId = event.target.dataset.addId;
-    const addType = event.target.dataset.addType;
-
-    if (addId && addType) addToCart(addId, addType);
-
-    const category = event.target.dataset.category;
-
-    if (category) {
-      state.category = category;
-      renderCategories();
-      applyFilter();
-    }
-
-    if (event.target.dataset.close === 'cart') {
-      $('cartDrawer').classList.add('hidden');
-    }
-
-    const qtyKey = event.target.dataset.qtyKey;
-
-    if (qtyKey) {
-      changeQty(qtyKey, Number(event.target.dataset.delta));
-    }
-  });
 }
 
-(function boot() {
-  bindEvents();
-  renderCartBadge();
-  loadProducts();
-})();
+/* =========================
+   本月回饋
+========================= */
+
+async function loadMonthlyReward() {
+  if (!state.vendorAccount) {
+    state.monthlyReward = 0;
+    return;
+  }
+
+  const start = new Date();
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+
+  const { data: orders, error: orderError } = await sb
+    .from("orders")
+    .select("id, created_at, order_status")
+    .eq("vendor_code", state.vendorAccount.vendor_code)
+    .gte("created_at", start.toISOString())
+    .neq("order_status", "已取消");
+
+  if (orderError || !orders?.length) {
+    state.monthlyReward = 0;
+    return;
+  }
+
+  const orderIds = orders.map((order) => order.id);
+
+  const { data: items, error: itemError } = await sb
+    .from("order_items")
+    .select("product_id, subtotal")
+    .in("order_id", orderIds);
+
+  if (itemError || !items?.length) {
+    state.monthlyReward = 0;
+    return;
+  }
+
+  const productMap = new Map(state.products.map((product) => [product.id, product]));
+
+  state.monthlyReward = items.reduce((sum, item) => {
+    const product = productMap.get(item.product_id);
+    const rate = Number(product?.reward_rate || 0);
+
+    if (rate <= 0) {
+      return sum;
+    }
+
+    return sum + Number(item.subtotal || 0) * (rate / 100);
+  }, 0);
+}
+
+/* =========================
+   頁面與工具
+========================= */
+
+function showPage(id) {
+  $("#loginPage")?.classList.add("hidden");
+  $("#confirmPage")?.classList.add("hidden");
+  $(`#${id}`)?.classList.remove("hidden");
+}
+
+function hidePage(id) {
+  $(`#${id}`)?.classList.add("hidden");
+}
+
+function toast(message) {
+  const el = $("#toast");
+
+  if (!el) {
+    alert(message);
+    return;
+  }
+
+  el.textContent = message;
+  el.classList.remove("hidden");
+
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(() => {
+    el.classList.add("hidden");
+  }, 2200);
+}
+
+function money(value) {
+  const number = Number(value || 0);
+
+  return new Intl.NumberFormat("zh-TW", {
+    style: "currency",
+    currency: "TWD",
+    maximumFractionDigits: 0,
+  }).format(number);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replaceAll("`", "&#096;");
+}

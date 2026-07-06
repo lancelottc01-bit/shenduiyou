@@ -1058,3 +1058,27 @@ main {
 .product-category {
   display: none !important;
 }
+
+.brand-supplier-line {
+  display: inline-flex;
+  width: fit-content;
+  margin: 6px 0 10px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f6eadc;
+  color: #9a5b24;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.product-desc-soft {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #eef1f5;
+  color: #475467;
+  font-size: 14px;
+  line-height: 1.7;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}

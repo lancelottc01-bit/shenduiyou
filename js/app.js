@@ -39,6 +39,7 @@ const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selec
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
+  hideQuickSection();
   bindEvents();
   await restoreSession();
   await loadProducts();
@@ -81,6 +82,21 @@ function bindEvents() {
   $("#loginForm")?.addEventListener("submit", handleVendorLogin);
   $("#logoutStoreBtn")?.addEventListener("click", handleVendorLogout);
   $("#submitOrderBtn")?.addEventListener("click", submitOrder);
+}
+
+/* =========================
+   首頁區塊
+========================= */
+
+function hideQuickSection() {
+  const quickList = $("#quickList");
+
+  if (quickList) {
+    const section = quickList.closest(".section-block");
+    if (section) {
+      section.remove();
+    }
+  }
 }
 
 /* =========================
@@ -262,7 +278,6 @@ function applyProductFilters() {
   });
 
   renderCategories();
-  renderQuickList();
   renderProducts();
 }
 
@@ -288,70 +303,6 @@ function renderCategories() {
     btn.addEventListener("click", () => {
       state.activeCategory = btn.dataset.category;
       applyProductFilters();
-    });
-  });
-}
-
-function renderQuickList() {
-  const quickList = $("#quickList");
-  if (!quickList) return;
-
-  const featured = state.products
-    .filter((product) => product.is_featured)
-    .slice(0, 8);
-
-  const list = featured.length ? featured : state.products.slice(0, 8);
-
-  if (list.length === 0) {
-    quickList.innerHTML = `<div class="empty-box">目前尚無熱門商品</div>`;
-    return;
-  }
-
-  quickList.classList.remove("skeleton-row");
-
-  quickList.innerHTML = list.map((product) => {
-    const rewardRate = Number(product.reward_rate || 0);
-    const hasBox = hasBoxPurchase(product);
-
-    return `
-      <article class="quick-card" data-product-id="${product.id}">
-        ${product.image_url
-          ? `<img src="${escapeAttr(product.image_url)}" alt="${escapeAttr(product.name)}" />`
-          : `<div class="product-image-placeholder">無圖片</div>`
-        }
-
-        <strong>${escapeHtml(product.name)}</strong>
-
-        <span>單包 ${money(product.price)}</span>
-        ${hasBox ? `<small class="box-price-text">單箱 ${money(product.box_price)}</small>` : ""}
-        ${rewardRate > 0 ? `<small class="reward-label">回饋 ${rewardRate}%</small>` : ""}
-
-        <button
-          class="small-add-btn"
-          type="button"
-          data-add-product="${product.id}"
-          data-purchase-type="single"
-        >
-          加一包
-        </button>
-
-        ${hasBox ? `
-          <button
-            class="small-add-btn box-small-btn"
-            type="button"
-            data-add-product="${product.id}"
-            data-purchase-type="box"
-          >
-            加一箱
-          </button>
-        ` : ""}
-      </article>
-    `;
-  }).join("");
-
-  $$("[data-add-product]", quickList).forEach((btn) => {
-    btn.addEventListener("click", () => {
-      addToCart(btn.dataset.addProduct, btn.dataset.purchaseType || "single");
     });
   });
 }
@@ -387,13 +338,14 @@ function renderProducts() {
         </div>
 
         <div class="product-content">
-          <div class="product-category">${escapeHtml(product.category || "未分類")}</div>
           <h3>${escapeHtml(product.name)}</h3>
 
-          <div class="purchase-options">
-            <div class="purchase-option">
+          ${rewardRate > 0 ? `<span class="reward-label">回饋 ${rewardRate}%</span>` : ""}
+
+          <div class="purchase-options clean-purchase-options">
+            <div class="purchase-option clean-purchase-option">
               <div>
-                <p class="product-spec">單包：${escapeHtml(singleSpec)}</p>
+                <p class="product-spec">每包：${escapeHtml(singleSpec)}</p>
                 <strong class="product-price">${money(product.price)}</strong>
               </div>
 
@@ -403,14 +355,14 @@ function renderProducts() {
                 data-add-product="${product.id}"
                 data-purchase-type="single"
               >
-                加入一包
+                加一包
               </button>
             </div>
 
             ${hasBox ? `
-              <div class="purchase-option box-option">
+              <div class="purchase-option clean-purchase-option">
                 <div>
-                  <p class="product-spec">單箱：${escapeHtml(boxSpec)}</p>
+                  <p class="product-spec">每箱：${escapeHtml(boxSpec)}</p>
                   <strong class="product-price box-price">${money(product.box_price)}</strong>
                 </div>
 
@@ -420,13 +372,11 @@ function renderProducts() {
                   data-add-product="${product.id}"
                   data-purchase-type="box"
                 >
-                  加入一箱
+                  加一箱
                 </button>
               </div>
             ` : ""}
           </div>
-
-          ${rewardRate > 0 ? `<span class="reward-label">回饋 ${rewardRate}%</span>` : ""}
 
           ${product.description ? `<p class="product-desc">${escapeHtml(product.description)}</p>` : ""}
         </div>
@@ -457,7 +407,7 @@ function addToCart(productId, purchaseType = "single") {
   const hasBox = hasBoxPurchase(product);
 
   if (isBox && !hasBox) {
-    toast("此商品尚未開放箱購");
+    toast("此商品尚未設定完整箱購規格");
     return;
   }
 
@@ -847,7 +797,9 @@ async function loadMonthlyReward() {
 ========================= */
 
 function hasBoxPurchase(product) {
-  return Boolean(product.box_enabled) && Number(product.box_price || 0) > 0;
+  return Boolean(product.box_enabled)
+    && Number(product.box_price || 0) > 0
+    && String(product.box_spec || "").trim().length > 0;
 }
 
 function formatSingleSpec(product) {
@@ -858,17 +810,11 @@ function formatSingleSpec(product) {
   if (spec) return spec;
   if (unit) return unit;
 
-  return "依商品標示";
+  return "未設定規格";
 }
 
 function formatBoxSpec(product) {
-  const boxSpec = String(product.box_spec || "").trim();
-
-  if (boxSpec) {
-    return boxSpec;
-  }
-
-  return "整箱";
+  return String(product.box_spec || "").trim();
 }
 
 /* =========================

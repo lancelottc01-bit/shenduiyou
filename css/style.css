@@ -930,3 +930,84 @@ main {
     font-size: 18px;
   }
 }
+
+.purchase-options {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.purchase-option {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: #fff7ef;
+  border: 1px solid rgba(230, 126, 34, 0.16);
+}
+
+.purchase-option .product-spec {
+  margin: 0 0 4px;
+  color: #5f6875;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.purchase-option .product-price {
+  display: block;
+  color: #0b2a4a;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.box-option {
+  background: #f1f7ff;
+  border-color: rgba(21, 94, 161, 0.16);
+}
+
+.box-option .box-price {
+  color: #0b3d68;
+}
+
+.box-add-btn {
+  background: #0b2a4a !important;
+  color: #fff !important;
+}
+
+.box-small-btn {
+  margin-top: 6px;
+  background: #0b2a4a !important;
+  color: #fff !important;
+}
+
+.box-price-text {
+  display: block;
+  margin-top: 4px;
+  color: #0b3d68;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.reward-label {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef8ed;
+  color: #2f8f46;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.quick-card .small-add-btn + .small-add-btn {
+  margin-top: 6px;
+}
+
+.confirm-item small {
+  display: block;
+  margin-top: 4px;
+  color: #667085;
+}

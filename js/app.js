@@ -323,7 +323,8 @@ function renderProducts() {
   }
 
   productGrid.innerHTML = state.filteredProducts.map((product) => {
-    const rewardRate = Number(product.reward_rate || 0);
+    const singleRewardRate = getSingleRewardRate(product);
+    const boxRewardRate = getBoxRewardRate(product);
     const hasBox = hasBoxPurchase(product);
     const singleSpec = formatSingleSpec(product);
     const boxSpec = formatBoxSpec(product);
@@ -337,21 +338,23 @@ function renderProducts() {
           }
         </div>
 
-       <div class="product-content">
-  <h3>${escapeHtml(product.name)}</h3>
+        <div class="product-content">
+          <h3>${escapeHtml(product.name)}</h3>
 
-  ${product.brand_supplier ? `
-    <div class="brand-supplier-line">
-      ${escapeHtml(product.brand_supplier)}
-    </div>
-  ` : ""}
+          ${product.brand_supplier ? `
+            <div class="brand-supplier-line">
+              ${escapeHtml(product.brand_supplier)}
+            </div>
+          ` : ""}
 
-  ${rewardRate > 0 ? `<span class="reward-label">回饋 ${rewardRate}%</span>` : ""}
           <div class="purchase-options clean-purchase-options">
             <div class="purchase-option clean-purchase-option">
               <div>
                 <p class="product-spec">每包：${escapeHtml(singleSpec)}</p>
                 <strong class="product-price">${money(product.price)}</strong>
+                ${singleRewardRate > 0 ? `
+                  <span class="purchase-reward-label">單包回饋 ${singleRewardRate}%</span>
+                ` : ""}
               </div>
 
               <button
@@ -369,6 +372,9 @@ function renderProducts() {
                 <div>
                   <p class="product-spec">每箱：${escapeHtml(boxSpec)}</p>
                   <strong class="product-price box-price">${money(product.box_price)}</strong>
+                  ${boxRewardRate > 0 ? `
+                    <span class="purchase-reward-label box-reward">箱購回饋 ${boxRewardRate}%</span>
+                  ` : ""}
                 </div>
 
                 <button
@@ -383,11 +389,11 @@ function renderProducts() {
             ` : ""}
           </div>
 
-         ${product.description ? `
-  <p class="product-desc product-desc-soft">
-    ${escapeHtml(product.description)}
-  </p>
-` : ""}
+          ${product.description ? `
+            <p class="product-desc product-desc-soft">
+              ${escapeHtml(product.description)}
+            </p>
+          ` : ""}
         </div>
       </article>
     `;
@@ -422,6 +428,7 @@ function addToCart(productId, purchaseType = "single") {
 
   const cartKey = `${productId}:${purchaseType}`;
   const price = isBox ? Number(product.box_price || 0) : Number(product.price || 0);
+  const rewardRate = isBox ? getBoxRewardRate(product) : getSingleRewardRate(product);
 
   const current = state.cart.get(cartKey);
 
@@ -434,7 +441,7 @@ function addToCart(productId, purchaseType = "single") {
       name: product.name,
       price,
       purchase_type: purchaseType,
-      reward_rate: Number(product.reward_rate || 0),
+      reward_rate: rewardRate,
       image_url: product.image_url || "",
       package_qty: product.package_qty || "",
       unit: product.unit || "",
@@ -511,7 +518,7 @@ function renderCartItems() {
           <span>${typeLabel}：${escapeHtml(specText)}</span>
 
           ${rewardRate > 0 ? `
-            <span class="reward-label">回饋 ${rewardRate}%</span>
+            <span class="reward-label">${isBox ? "箱購回饋" : "單包回饋"} ${rewardRate}%</span>
           ` : ""}
 
           <small>${money(item.price)} / 小計 ${money(item.price * item.quantity)}</small>
@@ -633,7 +640,7 @@ function renderConfirmItems() {
           <small>${escapeHtml(specText)}</small>
 
           ${rewardRate > 0 ? `
-            <small class="reward-label">回饋 ${rewardRate}%</small>
+            <small class="reward-label">${isBox ? "箱購回饋" : "單包回饋"} ${rewardRate}%</small>
           ` : ""}
         </div>
 
@@ -705,20 +712,28 @@ async function submitOrder() {
       throw orderError;
     }
 
-    const orderItems = cartItems.map((item) => ({
-      order_id: order.id,
-      product_id: item.id,
-      product_name: item.name,
-      purchase_type: item.purchase_type,
-      quantity: item.quantity,
-      unit_price: item.price,
-      subtotal: Number(item.price || 0) * Number(item.quantity || 0),
-      package_qty_snapshot: item.package_qty || null,
-      unit_snapshot: item.unit || null,
-      box_spec_snapshot: item.box_spec || null,
-      single_price_snapshot: item.purchase_type === "single" ? item.price : null,
-      box_price_snapshot: item.purchase_type === "box" ? item.price : null,
-    }));
+    const orderItems = cartItems.map((item) => {
+      const subtotal = Number(item.price || 0) * Number(item.quantity || 0);
+      const rewardRate = Number(item.reward_rate || 0);
+      const rewardAmount = Math.round(subtotal * (rewardRate / 100));
+
+      return {
+        order_id: order.id,
+        product_id: item.id,
+        product_name: item.name,
+        purchase_type: item.purchase_type,
+        quantity: item.quantity,
+        unit_price: item.price,
+        subtotal,
+        reward_rate_snapshot: rewardRate,
+        reward_amount_snapshot: rewardAmount,
+        package_qty_snapshot: item.package_qty || null,
+        unit_snapshot: item.unit || null,
+        box_spec_snapshot: item.box_spec || null,
+        single_price_snapshot: item.purchase_type === "single" ? item.price : null,
+        box_price_snapshot: item.purchase_type === "box" ? item.price : null,
+      };
+    });
 
     const { error: itemsError } = await sb
       .from("order_items")
@@ -779,7 +794,7 @@ async function loadMonthlyReward() {
 
   const { data: items, error: itemError } = await sb
     .from("order_items")
-    .select("product_id, subtotal")
+    .select("product_id, subtotal, reward_amount_snapshot, reward_rate_snapshot")
     .in("order_id", orderIds);
 
   if (itemError || !items?.length) {
@@ -790,8 +805,14 @@ async function loadMonthlyReward() {
   const productMap = new Map(state.products.map((product) => [product.id, product]));
 
   state.monthlyReward = items.reduce((sum, item) => {
+    const snapshotAmount = Number(item.reward_amount_snapshot || 0);
+
+    if (snapshotAmount > 0) {
+      return sum + snapshotAmount;
+    }
+
     const product = productMap.get(item.product_id);
-    const rate = Number(product?.reward_rate || 0);
+    const rate = Number(item.reward_rate_snapshot || product?.reward_rate || 0);
 
     if (rate <= 0) {
       return sum;
@@ -809,6 +830,14 @@ function hasBoxPurchase(product) {
   return Boolean(product.box_enabled)
     && Number(product.box_price || 0) > 0
     && String(product.box_spec || "").trim().length > 0;
+}
+
+function getSingleRewardRate(product) {
+  return Number(product?.single_reward_rate ?? product?.reward_rate ?? 0);
+}
+
+function getBoxRewardRate(product) {
+  return Number(product?.box_reward_rate ?? product?.reward_rate ?? 0);
 }
 
 function formatSingleSpec(product) {

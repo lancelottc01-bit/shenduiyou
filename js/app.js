@@ -207,7 +207,7 @@ async function loadProducts() {
     console.error(error);
 
     if (productGrid) {
-      productGrid.innerHTML = `<div class="empty-box">商品讀取失敗，請稍後再試。</div>`;
+      productGrid.innerHTML = `<div class="empty-box">商品讀取失敗：${escapeHtml(error.message)}</div>`;
     }
 
     if (productTotal) {
@@ -311,7 +311,7 @@ function renderQuickList() {
 
   quickList.innerHTML = list.map((product) => {
     const rewardRate = Number(product.reward_rate || 0);
-    const hasBox = product.box_enabled && Number(product.box_price || 0) > 0;
+    const hasBox = hasBoxPurchase(product);
 
     return `
       <article class="quick-card" data-product-id="${product.id}">
@@ -321,21 +321,37 @@ function renderQuickList() {
         }
 
         <strong>${escapeHtml(product.name)}</strong>
-        <span>${money(product.price)}</span>
 
-        ${hasBox ? `<small class="box-price-text">箱購 ${money(product.box_price)}</small>` : ""}
+        <span>單包 ${money(product.price)}</span>
+        ${hasBox ? `<small class="box-price-text">單箱 ${money(product.box_price)}</small>` : ""}
         ${rewardRate > 0 ? `<small class="reward-label">回饋 ${rewardRate}%</small>` : ""}
 
-        <button class="small-add-btn" type="button" data-add-product="${product.id}">
-          加入
+        <button
+          class="small-add-btn"
+          type="button"
+          data-add-product="${product.id}"
+          data-purchase-type="single"
+        >
+          加一包
         </button>
+
+        ${hasBox ? `
+          <button
+            class="small-add-btn box-small-btn"
+            type="button"
+            data-add-product="${product.id}"
+            data-purchase-type="box"
+          >
+            加一箱
+          </button>
+        ` : ""}
       </article>
     `;
   }).join("");
 
   $$("[data-add-product]", quickList).forEach((btn) => {
     btn.addEventListener("click", () => {
-      addToCart(btn.dataset.addProduct);
+      addToCart(btn.dataset.addProduct, btn.dataset.purchaseType || "single");
     });
   });
 }
@@ -357,7 +373,9 @@ function renderProducts() {
 
   productGrid.innerHTML = state.filteredProducts.map((product) => {
     const rewardRate = Number(product.reward_rate || 0);
-    const hasBox = product.box_enabled && Number(product.box_price || 0) > 0;
+    const hasBox = hasBoxPurchase(product);
+    const singleSpec = formatSingleSpec(product);
+    const boxSpec = formatBoxSpec(product);
 
     return `
       <article class="product-card">
@@ -372,29 +390,45 @@ function renderProducts() {
           <div class="product-category">${escapeHtml(product.category || "未分類")}</div>
           <h3>${escapeHtml(product.name)}</h3>
 
-          <p class="product-spec">
-            單包：${escapeHtml(product.package_qty || "")}
-            ${escapeHtml(product.unit || "")}
-          </p>
+          <div class="purchase-options">
+            <div class="purchase-option">
+              <div>
+                <p class="product-spec">單包：${escapeHtml(singleSpec)}</p>
+                <strong class="product-price">${money(product.price)}</strong>
+              </div>
 
-          ${hasBox ? `
-            <p class="product-spec">
-              單箱：${escapeHtml(product.box_spec || "")}｜${money(product.box_price)}
-            </p>
-          ` : ""}
-
-          ${product.description ? `<p class="product-desc">${escapeHtml(product.description)}</p>` : ""}
-
-          <div class="product-footer">
-            <div>
-              <strong class="product-price">${money(product.price)}</strong>
-              ${rewardRate > 0 ? `<span class="reward-label">回饋 ${rewardRate}%</span>` : ""}
+              <button
+                class="add-btn"
+                type="button"
+                data-add-product="${product.id}"
+                data-purchase-type="single"
+              >
+                加入一包
+              </button>
             </div>
 
-            <button class="add-btn" type="button" data-add-product="${product.id}">
-              加入補貨車
-            </button>
+            ${hasBox ? `
+              <div class="purchase-option box-option">
+                <div>
+                  <p class="product-spec">單箱：${escapeHtml(boxSpec)}</p>
+                  <strong class="product-price box-price">${money(product.box_price)}</strong>
+                </div>
+
+                <button
+                  class="add-btn box-add-btn"
+                  type="button"
+                  data-add-product="${product.id}"
+                  data-purchase-type="box"
+                >
+                  加入一箱
+                </button>
+              </div>
+            ` : ""}
           </div>
+
+          ${rewardRate > 0 ? `<span class="reward-label">回饋 ${rewardRate}%</span>` : ""}
+
+          ${product.description ? `<p class="product-desc">${escapeHtml(product.description)}</p>` : ""}
         </div>
       </article>
     `;
@@ -402,7 +436,7 @@ function renderProducts() {
 
   $$("[data-add-product]", productGrid).forEach((btn) => {
     btn.addEventListener("click", () => {
-      addToCart(btn.dataset.addProduct);
+      addToCart(btn.dataset.addProduct, btn.dataset.purchaseType || "single");
     });
   });
 }
@@ -411,7 +445,7 @@ function renderProducts() {
    補貨車
 ========================= */
 
-function addToCart(productId) {
+function addToCart(productId, purchaseType = "single") {
   const product = state.products.find((item) => item.id === productId);
 
   if (!product) {
@@ -419,15 +453,28 @@ function addToCart(productId) {
     return;
   }
 
-  const current = state.cart.get(productId);
+  const isBox = purchaseType === "box";
+  const hasBox = hasBoxPurchase(product);
+
+  if (isBox && !hasBox) {
+    toast("此商品尚未開放箱購");
+    return;
+  }
+
+  const cartKey = `${productId}:${purchaseType}`;
+  const price = isBox ? Number(product.box_price || 0) : Number(product.price || 0);
+
+  const current = state.cart.get(cartKey);
 
   if (current) {
     current.quantity += 1;
   } else {
-    state.cart.set(productId, {
+    state.cart.set(cartKey, {
+      cart_key: cartKey,
       id: product.id,
       name: product.name,
-      price: Number(product.price || 0),
+      price,
+      purchase_type: purchaseType,
       reward_rate: Number(product.reward_rate || 0),
       image_url: product.image_url || "",
       package_qty: product.package_qty || "",
@@ -440,18 +487,18 @@ function addToCart(productId) {
   }
 
   renderCart();
-  toast("已加入補貨車");
+  toast(isBox ? "已加入一箱" : "已加入一包");
 }
 
-function changeCartQty(productId, diff) {
-  const item = state.cart.get(productId);
+function changeCartQty(cartKey, diff) {
+  const item = state.cart.get(cartKey);
 
   if (!item) return;
 
   item.quantity += diff;
 
   if (item.quantity <= 0) {
-    state.cart.delete(productId);
+    state.cart.delete(cartKey);
   }
 
   renderCart();
@@ -493,18 +540,16 @@ function renderCartItems() {
   }
 
   cartItems.innerHTML = items.map((item) => {
-    const hasBox = item.box_enabled && Number(item.box_price || 0) > 0;
     const rewardRate = Number(item.reward_rate || 0);
+    const isBox = item.purchase_type === "box";
+    const typeLabel = isBox ? "箱購" : "單包";
+    const specText = isBox ? formatBoxSpec(item) : formatSingleSpec(item);
 
     return `
       <div class="cart-item">
         <div class="cart-item-main">
           <strong>${escapeHtml(item.name)}</strong>
-          <span>單包：${escapeHtml(item.package_qty || "")} ${escapeHtml(item.unit || "")}</span>
-
-          ${hasBox ? `
-            <span>單箱：${escapeHtml(item.box_spec || "")}｜${money(item.box_price)}</span>
-          ` : ""}
+          <span>${typeLabel}：${escapeHtml(specText)}</span>
 
           ${rewardRate > 0 ? `
             <span class="reward-label">回饋 ${rewardRate}%</span>
@@ -514,9 +559,9 @@ function renderCartItems() {
         </div>
 
         <div class="qty-control">
-          <button type="button" data-cart-minus="${item.id}">−</button>
+          <button type="button" data-cart-minus="${item.cart_key}">−</button>
           <span>${item.quantity}</span>
-          <button type="button" data-cart-plus="${item.id}">＋</button>
+          <button type="button" data-cart-plus="${item.cart_key}">＋</button>
         </div>
       </div>
     `;
@@ -616,19 +661,17 @@ function renderConfirmItems() {
   if (!confirmItems) return;
 
   confirmItems.innerHTML = items.map((item) => {
-    const hasBox = item.box_enabled && Number(item.box_price || 0) > 0;
     const rewardRate = Number(item.reward_rate || 0);
+    const isBox = item.purchase_type === "box";
+    const typeLabel = isBox ? "箱購" : "單包";
+    const specText = isBox ? formatBoxSpec(item) : formatSingleSpec(item);
 
     return `
       <div class="confirm-item">
         <div>
           <strong>${escapeHtml(item.name)}</strong>
-          <span>× ${item.quantity}</span>
-          <small>單包：${escapeHtml(item.package_qty || "")} ${escapeHtml(item.unit || "")}</small>
-
-          ${hasBox ? `
-            <small>單箱：${escapeHtml(item.box_spec || "")}｜${money(item.box_price)}</small>
-          ` : ""}
+          <span>${typeLabel} × ${item.quantity}</span>
+          <small>${escapeHtml(specText)}</small>
 
           ${rewardRate > 0 ? `
             <small class="reward-label">回饋 ${rewardRate}%</small>
@@ -677,6 +720,7 @@ async function submitOrder() {
   }
 
   const btn = $("#submitOrderBtn");
+
   if (btn) {
     btn.disabled = true;
     btn.textContent = "送出中...";
@@ -706,9 +750,15 @@ async function submitOrder() {
       order_id: order.id,
       product_id: item.id,
       product_name: item.name,
+      purchase_type: item.purchase_type,
       quantity: item.quantity,
       unit_price: item.price,
       subtotal: Number(item.price || 0) * Number(item.quantity || 0),
+      package_qty_snapshot: item.package_qty || null,
+      unit_snapshot: item.unit || null,
+      box_spec_snapshot: item.box_spec || null,
+      single_price_snapshot: item.purchase_type === "single" ? item.price : null,
+      box_price_snapshot: item.purchase_type === "box" ? item.price : null,
     }));
 
     const { error: itemsError } = await sb
@@ -793,7 +843,36 @@ async function loadMonthlyReward() {
 }
 
 /* =========================
-   頁面與工具
+   格式工具
+========================= */
+
+function hasBoxPurchase(product) {
+  return Boolean(product.box_enabled) && Number(product.box_price || 0) > 0;
+}
+
+function formatSingleSpec(product) {
+  const spec = String(product.package_qty || "").trim();
+  const unit = String(product.unit || "").trim();
+
+  if (spec && unit) return `${spec}/${unit}`;
+  if (spec) return spec;
+  if (unit) return unit;
+
+  return "依商品標示";
+}
+
+function formatBoxSpec(product) {
+  const boxSpec = String(product.box_spec || "").trim();
+
+  if (boxSpec) {
+    return boxSpec;
+  }
+
+  return "整箱";
+}
+
+/* =========================
+   頁面與共用工具
 ========================= */
 
 function showPage(id) {

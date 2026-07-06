@@ -1,4 +1,25 @@
-const sb = window.sdySupabase;
+let sb = window.sdySupabase;
+
+if (!sb) {
+  if (window.supabase && window.SDY_CONFIG?.SUPABASE_URL && window.SDY_CONFIG?.SUPABASE_ANON_KEY) {
+    sb = window.supabase.createClient(
+      window.SDY_CONFIG.SUPABASE_URL,
+      window.SDY_CONFIG.SUPABASE_ANON_KEY,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      }
+    );
+
+    window.sdySupabase = sb;
+  } else {
+    alert("前台 Supabase 尚未連線成功，請檢查 js/config.js 與 js/supabase.js");
+    throw new Error("Supabase client missing");
+  }
+}
 
 const state = {
   products: [],

@@ -21,11 +21,18 @@
           <strong>今天需要補什麼？</strong>
           <span>搜尋耗材、加入補貨車，登入後即可送出採購單。</span>
         </div>
-        <div class="hero-action-tags">
-          <span>單包可買</span>
-          <span>箱購優惠</span>
-          <span>快速補貨</span>
+      </div>
+
+      <div class="hero-reward-card">
+        <div>
+          <strong>合作店家專屬回饋</strong>
+          <span>立即登入查看目前可用回饋點數。</span>
+          <small>點數可兌換保鮮膜、洗手乳、抹布、垃圾袋、衛生紙等常用日用品耗材。</small>
         </div>
+
+        <button id="rewardLoginBtn" class="reward-login-btn" type="button">
+          登入看回饋
+        </button>
       </div>
     </header>
 
@@ -49,9 +56,35 @@
         </div>
       </section>
 
+      <section class="section-block reward-exchange-section">
+        <div class="section-title">
+          <div>
+            <h2>回饋兌換專區</h2>
+            <p class="section-subtitle">合作店家累積點數，可兌換常用日用品耗材。</p>
+          </div>
+
+          <button id="rewardRefreshBtn" class="text-btn" type="button">重新整理</button>
+        </div>
+
+        <div id="rewardBalanceCard" class="reward-balance-card">
+          <div>
+            <span>目前可用回饋</span>
+            <strong id="rewardBalanceText">登入後查看</strong>
+          </div>
+
+          <button id="rewardBalanceLoginBtn" class="secondary-btn" type="button">
+            登入查看
+          </button>
+        </div>
+
+        <div id="rewardProductList" class="reward-product-list">
+          <div class="empty-box">回饋商品載入中...</div>
+        </div>
+      </section>
+
       <section class="section-block last-section">
         <div class="section-title">
-          <h2>全部商品</h2>
+          <h2>全部耗材</h2>
           <span id="productTotal" class="muted">商品載入中...</span>
         </div>
 
@@ -121,7 +154,7 @@
       </div>
 
       <div class="login-hint">
-        登入後才可以送出採購單，系統會以攤商編號建立訂單。
+        登入後可以送出採購單，也可以查看目前可用回饋點數。
       </div>
 
       <form id="loginForm" class="checkout-form">
@@ -135,7 +168,7 @@
           <input id="storePassword" required type="password" placeholder="請輸入店家密碼" />
         </label>
 
-        <button id="loginBtn" class="primary-btn" type="submit">登入查看採購確認</button>
+        <button id="loginBtn" class="primary-btn" type="submit">登入查看</button>
       </form>
     </div>
 

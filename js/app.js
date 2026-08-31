@@ -28,9 +28,18 @@ const state = {
   activeCategory: "全部",
   searchText: "",
   cart: new Map(),
+
   vendorAccount: null,
   sessionUser: null,
+  loginIntent: null,
+
   monthlyReward: 0,
+
+  rewardProducts: [],
+  rewardLedgerTotal: 0,
+  rewardPendingPoints: 0,
+  rewardBalance: 0,
+  rewardRedemptions: [],
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -41,9 +50,17 @@ document.addEventListener("DOMContentLoaded", init);
 async function init() {
   hideQuickSection();
   bindEvents();
+
+  await Promise.all([
+    loadProducts(),
+    loadRewardProducts(),
+  ]);
+
   await restoreSession();
-  await loadProducts();
+
   renderCart();
+  renderRewardBalance();
+  renderRewardProducts();
 }
 
 function bindEvents() {
@@ -72,6 +89,7 @@ function bindEvents() {
   $("#checkoutBtn")?.addEventListener("click", handleCheckoutClick);
 
   $("#backFromLoginBtn")?.addEventListener("click", () => {
+    state.loginIntent = null;
     hidePage("loginPage");
   });
 
@@ -82,6 +100,19 @@ function bindEvents() {
   $("#loginForm")?.addEventListener("submit", handleVendorLogin);
   $("#logoutStoreBtn")?.addEventListener("click", handleVendorLogout);
   $("#submitOrderBtn")?.addEventListener("click", submitOrder);
+
+  $("#rewardLoginBtn")?.addEventListener("click", handleRewardLoginClick);
+  $("#rewardBalanceLoginBtn")?.addEventListener("click", handleRewardLoginClick);
+
+  $("#rewardRefreshBtn")?.addEventListener("click", async () => {
+    await loadRewardProducts();
+
+    if (state.vendorAccount) {
+      await refreshRewardAccount();
+    }
+
+    toast("回饋資料已更新");
+  });
 }
 
 /* =========================
@@ -109,6 +140,7 @@ async function restoreSession() {
   if (!data.session?.user) {
     state.sessionUser = null;
     state.vendorAccount = null;
+    renderRewardBalance();
     return;
   }
 
@@ -156,12 +188,22 @@ async function handleVendorLogin(event) {
   }
 
   hidePage("loginPage");
-  await openConfirmPage();
+
+  if (state.loginIntent === "checkout" || state.cart.size > 0) {
+    state.loginIntent = null;
+    await openConfirmPage();
+    return;
+  }
+
+  state.loginIntent = null;
+  scrollToRewardSection();
+  toast(`目前可用回饋：${Math.floor(state.rewardBalance)} 點`);
 }
 
 async function loadVendorAccount() {
   if (!state.sessionUser?.id) {
     state.vendorAccount = null;
+    renderRewardBalance();
     return false;
   }
 
@@ -174,11 +216,18 @@ async function loadVendorAccount() {
 
   if (error || !data) {
     state.vendorAccount = null;
+    renderRewardBalance();
     return false;
   }
 
   state.vendorAccount = data;
-  await loadMonthlyReward();
+
+  await Promise.all([
+    loadMonthlyReward(),
+    refreshRewardAccount(),
+  ]);
+
+  renderRewardProducts();
   return true;
 }
 
@@ -188,9 +237,16 @@ async function handleVendorLogout() {
   state.sessionUser = null;
   state.vendorAccount = null;
   state.monthlyReward = 0;
+  state.rewardLedgerTotal = 0;
+  state.rewardPendingPoints = 0;
+  state.rewardBalance = 0;
+  state.rewardRedemptions = [];
+  state.loginIntent = null;
 
   hidePage("confirmPage");
   showPage("loginPage");
+  renderRewardBalance();
+  renderRewardProducts();
   toast("已切換店家");
 }
 
@@ -407,6 +463,257 @@ function renderProducts() {
 }
 
 /* =========================
+   回饋兌換商品
+========================= */
+
+async function loadRewardProducts() {
+  const rewardProductList = $("#rewardProductList");
+
+  if (rewardProductList) {
+    rewardProductList.innerHTML = `<div class="empty-box">回饋商品載入中...</div>`;
+  }
+
+  const { data, error } = await sb
+    .from("reward_products")
+    .select("*")
+    .eq("is_visible", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
+
+    if (rewardProductList) {
+      rewardProductList.innerHTML = `<div class="empty-box">回饋商品讀取失敗：${escapeHtml(error.message)}</div>`;
+    }
+
+    return;
+  }
+
+  state.rewardProducts = data || [];
+  renderRewardProducts();
+}
+
+function renderRewardProducts() {
+  const rewardProductList = $("#rewardProductList");
+  if (!rewardProductList) return;
+
+  const list = state.rewardProducts.slice(0, 8);
+
+  if (list.length === 0) {
+    rewardProductList.innerHTML = `<div class="empty-box">目前尚無可兌換商品。</div>`;
+    return;
+  }
+
+  rewardProductList.innerHTML = list.map((item) => {
+    const points = Number(item.points_required || 0);
+    const stock = Number(item.stock || 0);
+    const disabled = stock <= 0;
+
+    return `
+      <article class="reward-product-card">
+        <div class="reward-product-image-wrap">
+          ${item.image_url
+            ? `<img src="${escapeAttr(item.image_url)}" alt="${escapeAttr(item.name)}" loading="lazy" />`
+            : `<div class="reward-product-placeholder">無圖片</div>`
+          }
+        </div>
+
+        <div class="reward-product-info">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${escapeHtml(item.spec || "依商品標示")}</span>
+          <b>${points} 點兌換</b>
+          ${stock > 0 ? `<small>剩餘 ${stock}</small>` : `<small class="sold-out-text">暫無庫存</small>`}
+        </div>
+
+        <button
+          class="reward-redeem-btn"
+          type="button"
+          data-redeem-product="${item.id}"
+          ${disabled ? "disabled" : ""}
+        >
+          ${disabled ? "暫無庫存" : state.vendorAccount ? "申請兌換" : "登入兌換"}
+        </button>
+      </article>
+    `;
+  }).join("");
+
+  $$("[data-redeem-product]", rewardProductList).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      handleRedeemClick(btn.dataset.redeemProduct);
+    });
+  });
+}
+
+function handleRewardLoginClick() {
+  if (state.vendorAccount) {
+    scrollToRewardSection();
+    toast(`目前可用回饋：${Math.floor(state.rewardBalance)} 點`);
+    return;
+  }
+
+  state.loginIntent = "reward";
+  showPage("loginPage");
+}
+
+async function refreshRewardAccount() {
+  await Promise.all([
+    loadRewardLedgerTotal(),
+    loadRewardRedemptions(),
+  ]);
+
+  applyRewardBalance();
+  renderRewardBalance();
+}
+
+async function loadRewardLedgerTotal() {
+  if (!state.vendorAccount?.vendor_code) {
+    state.rewardLedgerTotal = 0;
+    return;
+  }
+
+  const { data, error } = await sb
+    .from("reward_ledger")
+    .select("points")
+    .eq("vendor_code", state.vendorAccount.vendor_code);
+
+  if (error) {
+    console.error(error);
+    state.rewardLedgerTotal = 0;
+    return;
+  }
+
+  state.rewardLedgerTotal = (data || []).reduce((sum, row) => {
+    return sum + Number(row.points || 0);
+  }, 0);
+}
+
+async function loadRewardRedemptions() {
+  if (!state.vendorAccount?.vendor_code) {
+    state.rewardRedemptions = [];
+    state.rewardPendingPoints = 0;
+    return;
+  }
+
+  const { data, error } = await sb
+    .from("reward_redemptions")
+    .select("id, status, total_points")
+    .eq("vendor_code", state.vendorAccount.vendor_code)
+    .in("status", ["待確認", "已確認"]);
+
+  if (error) {
+    console.error(error);
+    state.rewardRedemptions = [];
+    state.rewardPendingPoints = 0;
+    return;
+  }
+
+  state.rewardRedemptions = data || [];
+  state.rewardPendingPoints = state.rewardRedemptions.reduce((sum, item) => {
+    return sum + Number(item.total_points || 0);
+  }, 0);
+}
+
+function applyRewardBalance() {
+  const available = Number(state.rewardLedgerTotal || 0) - Number(state.rewardPendingPoints || 0);
+  state.rewardBalance = Math.max(0, available);
+}
+
+function renderRewardBalance() {
+  const rewardBalanceText = $("#rewardBalanceText");
+  const rewardBalanceLoginBtn = $("#rewardBalanceLoginBtn");
+
+  if (rewardBalanceText) {
+    rewardBalanceText.textContent = state.vendorAccount
+      ? `${Math.floor(state.rewardBalance)} 點`
+      : "登入後查看";
+  }
+
+  if (rewardBalanceLoginBtn) {
+    rewardBalanceLoginBtn.textContent = state.vendorAccount
+      ? "已登入"
+      : "登入查看";
+  }
+}
+
+async function handleRedeemClick(productId) {
+  const item = state.rewardProducts.find((product) => product.id === productId);
+
+  if (!item) {
+    toast("找不到回饋商品");
+    return;
+  }
+
+  if (!state.vendorAccount) {
+    state.loginIntent = "reward";
+    showPage("loginPage");
+    return;
+  }
+
+  await refreshRewardAccount();
+
+  const pointsRequired = Number(item.points_required || 0);
+  const stock = Number(item.stock || 0);
+
+  if (stock <= 0) {
+    toast("此回饋商品目前暫無庫存");
+    return;
+  }
+
+  if (pointsRequired <= 0) {
+    toast("此商品尚未設定兌換點數");
+    return;
+  }
+
+  if (state.rewardBalance < pointsRequired) {
+    toast(`目前可用 ${Math.floor(state.rewardBalance)} 點，點數不足`);
+    return;
+  }
+
+  const ok = confirm(`確定要使用 ${pointsRequired} 點申請兌換「${item.name}」嗎？`);
+
+  if (!ok) return;
+
+  try {
+    const { error } = await sb
+      .from("reward_redemptions")
+      .insert({
+        vendor_code: state.vendorAccount.vendor_code,
+        reward_product_id: item.id,
+        product_name: item.name,
+        product_spec: item.spec || "",
+        points_required: pointsRequired,
+        quantity: 1,
+        total_points: pointsRequired,
+        status: "待確認",
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    await refreshRewardAccount();
+    renderRewardProducts();
+
+    toast("兌換申請已送出，等待後台確認");
+  } catch (error) {
+    console.error(error);
+    toast(`兌換失敗：${error.message || "請稍後再試"}`);
+  }
+}
+
+function scrollToRewardSection() {
+  const section = $(".reward-exchange-section");
+
+  if (section) {
+    section.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+}
+
+/* =========================
    補貨車
 ========================= */
 
@@ -583,6 +890,7 @@ async function handleCheckoutClick() {
   closeCart();
 
   if (!state.vendorAccount) {
+    state.loginIntent = "checkout";
     showPage("loginPage");
     return;
   }
@@ -592,6 +900,7 @@ async function handleCheckoutClick() {
 
 async function openConfirmPage() {
   if (!state.vendorAccount) {
+    state.loginIntent = "checkout";
     showPage("loginPage");
     return;
   }
@@ -676,6 +985,7 @@ function renderConfirmItems() {
 async function submitOrder() {
   if (!state.vendorAccount) {
     toast("請先登入");
+    state.loginIntent = "checkout";
     showPage("loginPage");
     return;
   }
